@@ -1,0 +1,429 @@
+/* ============================================
+   KaiMail - User Styles (Ultra-Simplified)
+   No borders, no flashy effects, no interaction glows
+   ============================================ */
+
+:root {
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #141414;
+    --bg-tertiary: #1a1a1a;
+    --bg-hover: #222222;
+
+    --text-primary: #ffffff;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+
+    --accent: #3b82f6;
+    --accent-hover: #2563eb;
+
+    --success: #22c55e;
+    --error: #ef4444;
+
+    --radius: 8px;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    border: none;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    font-family: var(--font);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+/* Header */
+.header {
+    height: 60px;
+    background: var(--bg-secondary);
+}
+
+.header-content {
+    max-width: 800px;
+    height: 100%;
+    margin: 0 auto;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 1.2rem;
+}
+
+.logo svg {
+    color: var(--accent);
+}
+
+/* Main Content */
+.main {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 40px 20px;
+}
+
+.email-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.email-input-wrapper {
+    display: flex;
+    background: var(--bg-secondary);
+    border-radius: var(--radius);
+    padding: 6px;
+    overflow: hidden;
+    width: 100%;
+    max-width: 500px;
+    /* Limit width for better centering look */
+}
+
+/* Remove any focus effects from wrapper */
+.email-input-wrapper:focus-within {
+    box-shadow: none;
+    background: var(--bg-secondary);
+}
+
+.email-input {
+    flex: 1;
+    padding: 12px 18px;
+    font-size: 1rem;
+    background: transparent;
+    color: white;
+    min-width: 0;
+}
+
+.email-domain {
+    padding: 12px;
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+}
+
+.btn-get {
+    background: var(--accent);
+    color: white;
+    padding: 0 24px;
+    border-radius: var(--radius);
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 6px;
+}
+
+.btn-get:hover {
+    background: var(--accent-hover);
+}
+
+/* Disable active/focus borders on buttons */
+.btn-get:focus,
+.btn-get:active {
+    outline: none;
+    border: none;
+}
+
+/* Current Email - Row layout */
+.current-email {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 20px;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius);
+}
+
+.current-email span {
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 1.1rem;
+    word-break: break-all;
+}
+
+.btn-copy {
+    padding: 0 12px;
+    background: transparent;
+    cursor: pointer;
+    color: var(--text-secondary);
+    display: flex;
+    /* Flex is handled inline, but good to have */
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+}
+
+.btn-copy:hover {
+    color: var(--text-primary);
+    background: transparent;
+}
+
+/* Inbox Section */
+.inbox-section {
+    border-radius: var(--radius);
+    background: var(--bg-secondary);
+    overflow: hidden;
+}
+
+.inbox-header {
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-tertiary);
+}
+
+.inbox-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+}
+
+.unread-badge {
+    background: var(--error);
+    color: white;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+}
+
+.btn-refresh {
+    background: var(--bg-hover);
+    padding: 8px;
+    color: #ffffff;
+    border-radius: var(--radius);
+    cursor: pointer;
+    display: flex;
+}
+
+.btn-refresh.spinning svg {
+    animation: spin-refresh 0.8s linear infinite;
+}
+
+@keyframes spin-refresh {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Messages List */
+.messages-list {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.message-item {
+    display: flex;
+    padding: 20px;
+    cursor: pointer;
+    gap: 15px;
+    transition: background 0.1s;
+}
+
+.message-item:hover {
+    background: var(--bg-hover);
+}
+
+.message-item.unread {
+    background: rgba(59, 130, 246, 0.05);
+}
+
+.message-dot {
+    width: 10px;
+    height: 10px;
+    background: var(--accent);
+    border-radius: 50%;
+    margin-top: 6px;
+    flex-shrink: 0;
+    opacity: 0;
+    /* Hidden by default */
+}
+
+.message-item.unread .message-dot {
+    opacity: 1;
+    /* Show only for unread */
+}
+
+.message-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.message-sender {
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 2px;
+}
+
+.message-subject {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    margin-bottom: 2px;
+}
+
+.message-time {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+/* States */
+.empty-state,
+.loading-state {
+    padding: 60px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.spinner {
+    width: 30px;
+    height: 30px;
+    border: 3px solid var(--bg-tertiary);
+    /* Restore borders for spinner */
+    border-top: 3px solid var(--accent);
+    border-radius: 50%;
+    margin: 0 auto 15px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.8);
+}
+
+.modal-content {
+    position: relative;
+    background: var(--bg-secondary);
+    width: 95%;
+    max-width: 700px;
+    max-height: 85vh;
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--bg-tertiary);
+    display: flex;
+    justify-content: space-between;
+}
+
+.btn-close {
+    background: transparent;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+
+.modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    background: #ffffff;
+    color: #1a1a1a;
+}
+
+/* Toast */
+.toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 24px;
+    background: var(--bg-tertiary);
+    color: white;
+    border-radius: var(--radius);
+    opacity: 0;
+    transition: 0.3s;
+    z-index: 2000;
+}
+
+.toast.show {
+    opacity: 1;
+}
+
+.toast.error {
+    background: var(--error);
+}
+
+.toast.success {
+    background: var(--success);
+}
+
+/* Utilities */
+.hidden {
+    display: none !important;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .main {
+        padding: 20px 15px;
+    }
+
+    .email-input-wrapper {
+        flex-direction: row;
+        padding: 8px;
+    }
+
+    .email-domain {
+        width: 100%;
+        margin-top: 4px;
+        border-radius: var(--radius);
+        justify-content: center;
+    }
+
+    .btn-get {
+        width: auto;
+        margin-left: 6px;
+        margin-top: 0;
+        padding: 0 16px;
+    }
+
+    /* Keep row layout for current email */
+    .current-email {
+        padding: 12px;
+        gap: 8px;
+    }
+
+    .current-email span {
+        font-size: 0.95rem;
+    }
+}

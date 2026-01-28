@@ -1,0 +1,48 @@
+RewriteEngine On
+RewriteBase /kaiMail/
+# /kaiMail/
+
+# Security: Disable directory listing
+Options -Indexes
+
+# Security: Protect sensitive files
+<FilesMatch "^(database\.sql|\.env|\.git)">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Security: headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# Admin routes - Clean URLs
+RewriteRule ^adminkaishop/login$ adminkaishop/login.php [L]
+RewriteRule ^adminkaishop/emails$ adminkaishop/emails.php [L]
+RewriteRule ^adminkaishop/expired$ adminkaishop/expired.php [L]
+RewriteRule ^adminkaishop/docs-domain$ adminkaishop/docs-domain.php [L]
+RewriteRule ^adminkaishop/docs-api$ adminkaishop/docs-api.php [L]
+
+# API routes - Clean RESTful URLs
+# Route all /api/* requests to api/index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^api/(.*)$ api/index.php [L,QSA]
+
+# Redirect trailing slashes for non-directories
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)/$ /$1 [L,R=301]
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [L,QSA]
+
+# PHP settings (Optional, depending on server config permissions)
+<IfModule mod_php.c>
+    php_value upload_max_filesize 10M
+    php_value post_max_size 10M
+    php_value max_execution_time 30
+    php_flag display_errors off
+</IfModule>
