@@ -125,7 +125,7 @@ class AdminCore {
         const toast = document.getElementById("toast");
         if (!toast) return;
 
-        toast.textContent = message;
+        toast.textContent = this.localizeApiError(message);
         toast.className = `toast show ${type}`.trim();
 
         if (this.toastTimer) {
@@ -135,6 +135,34 @@ class AdminCore {
         this.toastTimer = setTimeout(() => {
             toast.className = "toast";
         }, 3000);
+    }
+
+    localizeApiError(message) {
+        if (!message) return "Đã xảy ra lỗi";
+        const text = String(message).trim();
+        const lowered = text.toLowerCase();
+
+        const dictionary = {
+            unauthorized: "Không được phép truy cập",
+            "method not allowed": "Phương thức không được hỗ trợ",
+            "not found": "Không tìm thấy dữ liệu",
+            "an error occurred": "Đã xảy ra lỗi",
+            "internal server error": "Lỗi máy chủ nội bộ",
+            "server error": "Lỗi máy chủ",
+            "fatal error": "Lỗi nghiêm trọng",
+            "email is required": "Email là bắt buộc",
+            "invalid email format": "Định dạng email không hợp lệ",
+            "email not found": "Email không tồn tại trong hệ thống",
+            "email has expired": "Email đã hết hạn",
+            "message not found": "Không tìm thấy tin nhắn",
+            "polling failed": "Không thể đồng bộ hộp thư",
+            "database connection failed": "Không thể kết nối cơ sở dữ liệu",
+            "invalid json": "Dữ liệu JSON không hợp lệ",
+            "missing required fields": "Thiếu trường dữ liệu bắt buộc",
+            "email_id required": "Thiếu email_id"
+        };
+
+        return dictionary[lowered] || text;
     }
 
     escapeHtml(value) {

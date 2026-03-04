@@ -198,7 +198,7 @@ class KaiMail {
                 } else if (response.status === 410) {
                     this.showToast('Email đã hết hạn', 'error');
                 } else {
-                    this.showToast(data.error || 'Đã xảy ra lỗi', 'error');
+                    this.showToast(this.localizeApiError(data.error), 'error');
                 }
                 return;
             }
@@ -230,7 +230,7 @@ class KaiMail {
         } finally {
             this.getMailBtn.disabled = false;
             this.getMailBtn.innerHTML = `
-                <span>Get Mail</span>
+                <span>Mở inbox</span>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="5" y1="12" x2="19" y2="12"/>
                     <polyline points="12 5 19 12 12 19"/>
@@ -269,7 +269,7 @@ class KaiMail {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.error || 'Failed to load messages');
+                throw new Error(this.localizeApiError(data.error || 'Không thể tải danh sách thư'));
             }
 
             this.renderMessages(data.messages || []);
@@ -339,12 +339,12 @@ class KaiMail {
             const message = await response.json();
 
             if (!response.ok) {
-                throw new Error(message.error || 'Failed to load message');
+                throw new Error(this.localizeApiError(message.error || 'Không thể tải nội dung thư'));
             }
 
             // Set subject and from info
             this.modalSubject.textContent = message.subject;
-            this.modalFrom.innerHTML = `From: <strong>${this.getDisplayName(message)}</strong> &nbsp;|&nbsp; ${this.formatDateTime(message.received_at)}`;
+            this.modalFrom.innerHTML = `Người gửi: <strong>${this.getDisplayName(message)}</strong> &nbsp;|&nbsp; ${this.formatDateTime(message.received_at)}`;
 
             // Render body with same logic as admin
             const body = this.modalBody;
@@ -355,7 +355,7 @@ class KaiMail {
             } else {
                 // Plain text email
                 body.className = 'modal-body text-only';
-                body.textContent = message.body_text || '(No content)';
+                body.textContent = message.body_text || '(Không có nội dung)';
                 body.style.whiteSpace = 'pre-wrap';
             }
 
@@ -537,13 +537,15 @@ class KaiMail {
             warning: 'warning',
             info: 'info'
         };
+        const messageText = this.localizeApiError(message);
+        const titleText = title ? this.localizeApiError(title) : '';
 
         Swal.fire({
             toast: true,
             position: 'top-end',
             icon: iconMap[type] || 'info',
-            title: title || message,
-            text: title ? message : '',
+            title: titleText || messageText,
+            text: titleText ? messageText : '',
             showConfirmButton: false,
             timer: type === 'error' ? 4500 : 3000,
             timerProgressBar: true,
@@ -591,9 +593,41 @@ class KaiMail {
 
     extractSender(email) {
         // Legacy, redirected to getDisplayName logic but simpler
-        if (!email) return 'Unknown';
+        if (!email) return 'Không rõ';
         if (email.includes('openai.com')) return 'OpenAI';
         return email.split('@')[0];
+    }
+
+    localizeApiError(message) {
+        if (!message) return 'Đã xảy ra lỗi';
+        const text = String(message).trim();
+        const lowered = text.toLowerCase();
+
+        const dictionary = {
+            unauthorized: 'Không được phép truy cập',
+            'method not allowed': 'Phương thức không được hỗ trợ',
+            'not found': 'Không tìm thấy dữ liệu',
+            'an error occurred': 'Đã xảy ra lỗi',
+            'internal server error': 'Lỗi máy chủ nội bộ',
+            'server error': 'Lỗi máy chủ',
+            'fatal error': 'Lỗi nghiêm trọng',
+            'email is required': 'Email là bắt buộc',
+            'invalid email format': 'Định dạng email không hợp lệ',
+            'email not found': 'Email không tồn tại trong hệ thống',
+            'email has expired': 'Email đã hết hạn',
+            'message not found': 'Không tìm thấy tin nhắn',
+            'polling failed': 'Không thể đồng bộ hộp thư',
+            'database connection failed': 'Không thể kết nối cơ sở dữ liệu',
+            'invalid json': 'Dữ liệu JSON không hợp lệ',
+            'missing required fields': 'Thiếu trường dữ liệu bắt buộc',
+            'email_id required': 'Thiếu email_id'
+        };
+
+        if (dictionary[lowered]) {
+            return dictionary[lowered];
+        }
+
+        return text;
     }
 
     formatTime(dateStr) {
