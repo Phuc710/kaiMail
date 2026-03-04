@@ -1,58 +1,62 @@
 <?php
 /**
- * Admin Authentication API
- * KaiMail - Temp Mail System
- * 
- * POST /api/admin/auth - Login
- * DELETE /api/admin/auth - Logout
+ * Admin Authentication API (không dùng cookie/session).
+ *
+ * POST   /api/admin/auth.php - Kiểm tra ADMIN_ACCESS_KEY
+ * GET    /api/admin/auth.php - Kiểm tra header xác thực hiện tại
+ * DELETE /api/admin/auth.php - Đăng xuất logic phía client
  */
 
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/app.php';
-require_once __DIR__ . '/../../includes/Auth.php';
+require_once __DIR__ . '/../middleware/ApiSecurity.php';
 
 header('Content-Type: application/json; charset=utf-8');
+ApiSecurity::setCorsHeaders();
+ApiSecurity::handlePreflight();
 
 $method = getMethod();
 
 if ($method === 'POST') {
-    // Login with access key
     $data = getJsonInput();
-    $password = $data['password'] ?? '';
+    $password = trim((string) ($data['password'] ?? ''));
 
-    if (empty($password)) {
-        jsonResponse(['error' => 'Access key is required'], 400);
+    // Hỗ trợ dán nguyên dòng từ .env: ADMIN_ACCESS_KEY=xxxx
+    if (str_starts_with($password, 'ADMIN_ACCESS_KEY=')) {
+        $password = substr($password, strlen('ADMIN_ACCESS_KEY='));
     }
 
-    // Hardcoded access key
-    if ($password === 'kaishop@2026') {
-        Auth::startSession();
-        $_SESSION['admin_id'] = 1;
-        $_SESSION['admin_username'] = 'admin';
-        $_SESSION['logged_in'] = true;
+    if ($password === '') {
+        jsonResponse(['error' => 'Khóa truy cập là bắt buộc'], 400);
+    }
 
-        jsonResponse([
-            'success' => true,
-            'message' => 'Login successful',
-            'admin' => ['id' => 1, 'username' => 'admin']
-        ]);
-    } else {
-        jsonResponse(['error' => 'Invalid access key'], 401);
+    if (!hash_equals((string) ADMIN_ACCESS_KEY, $password)) {
+        jsonResponse(['error' => 'Khóa truy cập không đúng'], 401);
     }
-} elseif ($method === 'DELETE') {
-    // Logout
-    Auth::logout();
-    jsonResponse(['success' => true, 'message' => 'Logged out']);
-} elseif ($method === 'GET') {
-    // Check session
-    if (Auth::isLoggedIn()) {
-        jsonResponse([
-            'logged_in' => true,
-            'admin' => Auth::getAdmin()
-        ]);
-    } else {
-        jsonResponse(['logged_in' => false], 401);
-    }
-} else {
-    jsonResponse(['error' => 'Method not allowed'], 405);
+
+    jsonResponse([
+        'success' => true,
+        'message' => 'Xác thực thành công',
+        'auth_type' => 'admin_access_key',
+        'server_time' => date('Y-m-d H:i:s'),
+    ]);
 }
+
+if ($method === 'GET') {
+    $isAdminHeader = ApiSecurity::verifyAdminAccessKeyHeader();
+    ApiSecurity::requireAdminOrApiAuth();
+    jsonResponse([
+        'authenticated' => true,
+        'auth_type' => $isAdminHeader ? 'admin_access_key' : 'api_key_secret',
+        'server_time' => date('Y-m-d H:i:s'),
+    ]);
+}
+
+if ($method === 'DELETE') {
+    jsonResponse([
+        'success' => true,
+        'message' => 'Đã đăng xuất phía client',
+    ]);
+}
+
+jsonResponse(['error' => 'Method không được hỗ trợ'], 405);

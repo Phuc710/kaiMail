@@ -1,23 +1,53 @@
 <?php
-/**
- * Admin Messages API
- * KaiMail - Temp Mail System
- * 
- * GET    /api/admin/messages - List messages
- * GET    /api/admin/messages?id=x - Get single message
- * DELETE /api/admin/messages - Delete message(s)
- */
+// Error handler to return JSON
+function handleJsonError($errno, $errstr, $errfile, $errline)
+{
+    if (!(error_reporting() & $errno))
+        return;
+    http_response_code(500);
+    $response = ['error' => 'Lỗi máy chủ'];
+    if (defined('EXPOSE_ERROR_DETAILS') && EXPOSE_ERROR_DETAILS) {
+        $response['details'] = "$errstr in $errfile:$errline";
+    }
+    echo json_encode($response);
+    exit;
+}
+set_error_handler("handleJsonError");
 
-require_once __DIR__ . '/../../config/database.php';
+// Catch Fatal Errors
+register_shutdown_function(function () {
+    $error = error_get_last();
+    if ($error && ($error['type'] === E_ERROR || $error['type'] === E_PARSE || $error['type'] === E_COMPILE_ERROR)) {
+        http_response_code(500);
+        $response = ['error' => 'Lỗi nghiêm trọng'];
+        if (defined('EXPOSE_ERROR_DETAILS') && EXPOSE_ERROR_DETAILS) {
+            $response['details'] = $error['message'] . " in " . $error['file'] . ":" . $error['line'];
+        }
+        echo json_encode($response);
+        exit;
+    }
+});
+
+$servicePath = __DIR__ . '/../../includes/MessageService.php';
+if (!file_exists($servicePath)) {
+    http_response_code(500);
+    $response = ['error' => 'Lỗi nghiêm trọng'];
+    if (defined('EXPOSE_ERROR_DETAILS') && EXPOSE_ERROR_DETAILS) {
+        $response['details'] = 'MessageService.php not found';
+    }
+    echo json_encode($response);
+    exit;
+}
 require_once __DIR__ . '/../../config/app.php';
-require_once __DIR__ . '/../../includes/Auth.php';
+require_once $servicePath;
+require_once __DIR__ . '/../middleware/ApiSecurity.php';
 
 header('Content-Type: application/json; charset=utf-8');
-
-Auth::requireLogin();
+ApiSecurity::setCorsHeaders();
+ApiSecurity::handlePreflight();
+ApiSecurity::requireAdminOrApiAuth();
 
 $method = getMethod();
-$db = getDB();
 
 try {
     // =====================
@@ -26,86 +56,20 @@ try {
     if ($method === 'GET') {
         // Get single message
         if (isset($_GET['id'])) {
-            $id = (int) $_GET['id'];
-            $stmt = $db->prepare("
-                SELECT m.*, UNIX_TIMESTAMP(m.received_at) as ts, e.email 
-                FROM messages m 
-                JOIN emails e ON m.email_id = e.id 
-                WHERE m.id = ?
-            ");
-            $stmt->execute([$id]);
-            $message = $stmt->fetch();
-
-            if ($message) {
-                // Decode Subject if MIME encoded
-                if (strpos($message['subject'], '=?') === 0) {
-                    $message['subject'] = iconv_mime_decode($message['subject'], 0, "UTF-8");
-                }
-
-                // Decode Body Content (Quoted-Printable)
-                if ($message['body_html']) {
-                    // Check if likely quoted-printable (contains =3D or =20 or similar patterns)
-                    if (preg_match('/=[0-9A-F]{2}/', $message['body_html'])) {
-                        $message['body_html'] = quoted_printable_decode($message['body_html']);
-                    }
-                }
-
-                if ($message['body_text']) {
-                    if (preg_match('/=[0-9A-F]{2}/', $message['body_text'])) {
-                        $message['body_text'] = quoted_printable_decode($message['body_text']);
-                    }
-                }
-            }
-
+            $message = MessageService::getMessage((int) $_GET['id']);
             if (!$message) {
-                jsonResponse(['error' => 'Message not found'], 404);
+                jsonResponse(['error' => 'Không tìm thấy tin nhắn'], 404);
             }
-
-            // Mark as read
-            $db->prepare("UPDATE messages SET is_read = 1 WHERE id = ?")->execute([$id]);
-
-            // Return formatted response
-            jsonResponse([
-                'id' => $message['id'],
-                'from_email' => $message['from_email'],
-                'from_name' => $message['from_name'],
-                'subject' => $message['subject'],
-                'body_text' => $message['body_text'],
-                'body_html' => $message['body_html'],
-                'is_read' => true,
-                'received_at' => $message['received_at']
-            ]);
+            jsonResponse($message);
         }
 
         // List messages for email
         $emailId = (int) ($_GET['email_id'] ?? 0);
-
         if (!$emailId) {
-            jsonResponse(['error' => 'email_id required'], 400);
+            jsonResponse(['error' => 'Thiếu email_id'], 400);
         }
 
-        $stmt = $db->prepare("
-            SELECT id, from_email, from_name, subject, is_read, received_at,
-                   UNIX_TIMESTAMP(received_at) as ts,
-                   LEFT(body_text, 100) as preview
-            FROM messages 
-            WHERE email_id = ?
-            ORDER BY received_at DESC
-        ");
-        $stmt->execute([$emailId]);
-        $messages = $stmt->fetchAll();
-
-        // Process preview text and subject
-        foreach ($messages as &$msg) {
-            if (strpos($msg['subject'], '=?') === 0) {
-                $msg['subject'] = iconv_mime_decode($msg['subject'], 0, "UTF-8");
-            }
-            // Basic quoted-printable decode for preview if needed
-            if (strpos($msg['preview'], '=') !== false) {
-                $msg['preview'] = quoted_printable_decode($msg['preview']);
-            }
-        }
-
+        $messages = MessageService::getMessagesByEmailId($emailId);
         jsonResponse([
             'total' => count($messages),
             'messages' => $messages
@@ -117,38 +81,33 @@ try {
     // =====================
     elseif ($method === 'DELETE') {
         $data = getJsonInput();
-
-        // Debug logging
-
         $ids = $data['ids'] ?? [];
         $emailId = (int) ($data['email_id'] ?? 0);
         $deleteAll = $data['delete_all'] ?? false;
 
-        if ($deleteAll && $emailId) {
-            $stmt = $db->prepare("DELETE FROM messages WHERE email_id = ?");
-            $stmt->execute([$emailId]);
-            $deleted = $stmt->rowCount();
-        } elseif (!empty($ids)) {
-            $ids = array_map('intval', $ids);
-            $placeholders = implode(',', array_fill(0, count($ids), '?'));
-            $sql = "DELETE FROM messages WHERE id IN ($placeholders)";
-
-
-            $stmt = $db->prepare($sql);
-            $stmt->execute($ids);
-            $deleted = $stmt->rowCount();
-        } else {
-            jsonResponse(['error' => 'No messages specified', 'received' => $data], 400);
-        }
+        $deleted = MessageService::deleteMessages($emailId, $ids, $deleteAll);
 
         jsonResponse([
             'success' => true,
             'deleted' => $deleted
         ]);
+
     } else {
-        jsonResponse(['error' => 'Method not allowed'], 405);
+        jsonResponse(['error' => 'Phương thức không được hỗ trợ'], 405);
     }
 
+} catch (PDOException $e) {
+    error_log("Database Error in admin/messages.php: " . $e->getMessage());
+    $response = ['error' => 'Lỗi cơ sở dữ liệu'];
+    if (EXPOSE_ERROR_DETAILS) {
+        $response['message'] = $e->getMessage();
+    }
+    jsonResponse($response, 500);
 } catch (Exception $e) {
-    jsonResponse(['error' => 'Internal server error'], 500);
+    error_log("General Error in admin/messages.php: " . $e->getMessage());
+    $response = ['error' => 'Lỗi hệ thống'];
+    if (EXPOSE_ERROR_DETAILS) {
+        $response['message'] = $e->getMessage();
+    }
+    jsonResponse($response, 500);
 }

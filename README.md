@@ -97,14 +97,18 @@ Clean RESTful API router:
 ### 4. Middleware
 
 #### AuthMiddleware
-- Validate X-Secret-Key header
+- Validate `X-API-KEY`, `X-API-SECRET`, `X-API-TIMESTAMP`, `X-API-SIGNATURE`
 - Centralized authentication
 
 ## 📡 API Endpoints
 
 ### External API (for tools)
 
-**Authentication**: X-Secret-Key header required
+**Authentication (required for external/integration API calls)**:
+- `X-API-KEY`
+- `X-API-SECRET`
+- `X-API-TIMESTAMP` (Unix timestamp)
+- `X-API-SIGNATURE` (`HMAC-SHA256(METHOD + "\n" + PATH + "\n" + TIMESTAMP)`)
 
 #### Create Email
 ```http
@@ -124,7 +128,9 @@ Content-Type: application/json
 GET /api/emails/{email}/messages
 ```
 
-### User API (for frontend)
+### User API
+
+All user endpoints are protected by API key/secret headers.
 
 #### Check Email
 ```http
@@ -148,10 +154,15 @@ GET /api/poll?email_id=1&last_check=2026-01-27%2014:00:00
 
 ### Admin API
 
-#### Login
+#### Access Key Check (Admin UI)
 ```http
-POST /api/admin/auth
-{"password": "kaishop@2026"}
+POST /api/admin/auth.php
+{"password":"<ADMIN_ACCESS_KEY>"}
+```
+
+#### Auth Check (Key/Secret hoặc Admin Access Key Header)
+```http
+GET /api/admin/auth.php
 ```
 
 #### Get Emails
@@ -199,9 +210,10 @@ DELETE /api/admin/emails/{id}
 
 ### Authentication Methods
 
-1. **External API**: Secret key (`X-Secret-Key` header)
-2. **Admin Panel**: Access key + session
-3. **User Interface**: No auth (public)
+1. **External API calls**: API key + secret + timestamp + HMAC signature headers
+2. **Admin Web UI**: `ADMIN_ACCESS_KEY` qua header `X-ADMIN-ACCESS-KEY` (không dùng cookie)
+3. **Admin API endpoints**: chấp nhận `X-ADMIN-ACCESS-KEY` hoặc bộ key/secret cho tool ngoài
+4. **Webhook endpoint**: `X-WEBHOOK-SECRET` header
 
 ### Secret Key
 ```

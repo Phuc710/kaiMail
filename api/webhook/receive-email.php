@@ -2,17 +2,25 @@
 /**
  * Webhook - Receive emails from Cloudflare Email Routing
  * POST /api/webhook/receive-email.php
+ * 
+ * Handles MIME-encoded content from Cloudflare Worker
+ * Decodes quoted-printable, base64, and RFC 2047 headers
  */
 
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/app.php';
+require_once __DIR__ . '/../../includes/EmailDecoder.php';
 
 // Setup logging
-$logFile = __DIR__ . '/../../storage/logs/webhook.log';
+$logFile = WEBHOOK_LOG_FILE;
 
 function logMessage($msg)
 {
     global $logFile;
+    $logDir = dirname($logFile);
+    if (!is_dir($logDir)) {
+        @mkdir($logDir, 0775, true);
+    }
     $timestamp = date('Y-m-d H:i:s');
     file_put_contents($logFile, "[$timestamp] $msg\n", FILE_APPEND);
 }
@@ -25,9 +33,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // Verify webhook secret
-$authHeader = $_SERVER['HTTP_X_WEBHOOK_SECRET'] ?? '';
+$authHeader = (string) ($_SERVER['HTTP_X_WEBHOOK_SECRET'] ?? '');
 
-if ($authHeader !== WEBHOOK_SECRET) {
+if ($authHeader === '' || !hash_equals((string) WEBHOOK_SECRET, $authHeader)) {
     http_response_code(401);
     logMessage("ERROR: Unauthorized - Secret mismatch");
     die(json_encode(['error' => 'Unauthorized']));
@@ -52,7 +60,42 @@ $textBody = $data['text'] ?? '';
 $htmlBody = $data['html'] ?? '';
 $messageId = $data['message_id'] ?? uniqid('msg_');
 
-logMessage("Received email for: $to from $from (ID: $messageId)");
+// ===== DECODE EMAIL DATA FROM CLOUDFLARE WORKER =====
+$decodedData = [
+    'subject' => $subject,
+    'from_name' => $fromName,
+    'text' => $textBody,
+    'html' => $htmlBody
+];
+$decodedData = EmailDecoder::processEmail($decodedData);
+
+// Use decoded values
+$subject = $decodedData['subject'];
+$fromName = $decodedData['from_name'];
+$textBody = $decodedData['text'];
+$htmlBody = $decodedData['html'];
+
+// Parse from_name if empty - extract from "Name <email@domain.com>" format
+if (empty($fromName) && !empty($from)) {
+    // Check if format is "Name <email>"
+    if (preg_match('/^(.+?)\s*<(.+)>$/', $from, $matches)) {
+        $fromName = trim($matches[1], '" ');
+        $fromEmail = $matches[2];
+    } else {
+        // Just email address, no name
+        $fromEmail = $from;
+        $fromName = ''; // Will be empty, UI will handle fallback
+    }
+} else {
+    // from_name provided or from is just email
+    $fromEmail = $from;
+    // Clean email if it has <> brackets
+    if (preg_match('/<(.+)>/', $fromEmail, $matches)) {
+        $fromEmail = $matches[1];
+    }
+}
+
+logMessage("Received email for: $to from $from | Parsed: fromEmail=$fromEmail, fromName=$fromName (ID: $messageId)");
 
 if (empty($to) || empty($from)) {
     http_response_code(400);
@@ -106,11 +149,19 @@ try {
 
     $stmt->execute([
         $emailAccount['id'],
-        $from,
-        $fromName,
+        $fromEmail, // Use parsed email
+        $fromName,  // Use parsed name
         $subject,
-        $textBody,
-        $htmlBody,
+
+            // Decode Quoted-Printable if detected immediately at source
+        (strpos($textBody, '=20') !== false || strpos($textBody, '=3D') !== false)
+        ? quoted_printable_decode($textBody)
+        : $textBody,
+
+        (strpos($htmlBody, '=20') !== false || strpos($htmlBody, '=3D') !== false)
+        ? quoted_printable_decode($htmlBody)
+        : $htmlBody,
+
         $messageId,
         $data['received_at'] ?? date('Y-m-d H:i:s')
     ]);
@@ -126,9 +177,9 @@ try {
     // Log error
     logMessage("ERROR: " . $e->getMessage());
     http_response_code(500);
-    // Show actual error for debugging
-    echo json_encode([
-        'error' => 'Internal server error',
-        'details' => $e->getMessage()
-    ]);
+    $response = ['error' => 'Internal server error'];
+    if (EXPOSE_ERROR_DETAILS) {
+        $response['details'] = $e->getMessage();
+    }
+    echo json_encode($response);
 }

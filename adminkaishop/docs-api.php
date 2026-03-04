@@ -1,523 +1,227 @@
 <?php
-/**
- * API Documentation
- * KaiMail Admin - Complete API Reference
- */
+declare(strict_types=1);
 
-require_once __DIR__ . '/../includes/Auth.php';
-Auth::requireLogin();
+require_once __DIR__ . '/../includes/AdminLayout.php';
 
-$admin = Auth::getAdmin();
+$adminName = 'admin';
+$baseApi = rtrim((string) BASE_URL, '/') . '/api';
+$basePath = rtrim((string) parse_url((string) BASE_URL, PHP_URL_PATH), '/');
+$statsPath = ($basePath === '' ? '' : $basePath) . '/api/admin/stats.php';
+
+AdminLayout::begin('Tài liệu API', 'docs-api', $adminName);
 ?>
-<!DOCTYPE html>
-<html lang="vi">
+<div class="docs-container">
+    <header class="docs-header">
+        <h1>Tài liệu API KaiMail</h1>
+        <p>UI admin đăng nhập bằng access key, không dùng cookie. Tích hợp bên ngoài dùng API key/secret + chữ ký.</p>
+    </header>
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>API Documentation - KaiMail Admin</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/svg+xml" href="<?= BASE_URL ?>/assets/logo.svg">
-    <link rel="stylesheet" href="<?= BASE_URL ?>/css/admin.css?v=<?= time() ?>">
-</head>
+    <div class="docs-content">
+        <section class="docs-grid">
+            <article class="info-card">
+                <h3>Địa chỉ API gốc</h3>
+                <p><code><?= htmlspecialchars($baseApi, ENT_QUOTES, 'UTF-8') ?></code></p>
+            </article>
+            <article class="info-card">
+                <h3>Kiểu bảo mật</h3>
+                <p>Header <code>X-API-KEY</code> + <code>X-API-SECRET</code> + chữ ký HMAC.</p>
+            </article>
+            <article class="info-card">
+                <h3>Múi giờ hệ thống</h3>
+                <p>Toàn bộ thời gian dùng chuẩn Việt Nam <code>+07:00</code> (<code>Asia/Ho_Chi_Minh</code>).</p>
+            </article>
+        </section>
 
-<body>
-    <!-- Toast -->
-    <div id="toast" class="toast"></div>
+        <section style="margin-bottom: 20px;">
+            <h2>Phân biệt 2 luồng bảo mật</h2>
+            <table class="param-table">
+                <thead>
+                    <tr>
+                        <th>Luồng</th>
+                        <th>Xác thực</th>
+                        <th>Mục đích</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>UI Admin Web</td>
+                        <td><code>ADMIN_ACCESS_KEY</code> (header <code>X-ADMIN-ACCESS-KEY</code>)</td>
+                        <td>Đăng nhập trong trình duyệt tại <code>/adminkaishop/login</code>, không dùng cookie</td>
+                    </tr>
+                    <tr>
+                        <td>API bên ngoài</td>
+                        <td><code>X-API-KEY</code>, <code>X-API-SECRET</code>, <code>X-API-TIMESTAMP</code>, <code>X-API-SIGNATURE</code></td>
+                        <td>Gọi API từ app/service bên ngoài</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
 
-    <!-- Sidebar -->
-    <aside class="sidebar">
-        <div class="sidebar-header">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                <polyline points="22,6 12,13 2,6" />
-            </svg>
-            <span>KaiMail</span>
-        </div>
+        <section>
+            <h2>Bắt buộc xác thực cho toàn bộ API</h2>
+            <table class="param-table">
+                <thead>
+                    <tr>
+                        <th>Header</th>
+                        <th>Bắt buộc</th>
+                        <th>Mô tả</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>X-API-KEY</code></td>
+                        <td>Có</td>
+                        <td>Khóa truy cập API từ <code>.env</code> (`API_ACCESS_KEY`)</td>
+                    </tr>
+                    <tr>
+                        <td><code>X-API-SECRET</code></td>
+                        <td>Có</td>
+                        <td>Secret API từ <code>.env</code> (`API_SECRET_KEY`)</td>
+                    </tr>
+                    <tr>
+                        <td><code>X-API-TIMESTAMP</code></td>
+                        <td>Có</td>
+                        <td>Unix timestamp (giây), bị từ chối nếu quá thời gian <code>API_REQUEST_TTL</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>X-API-SIGNATURE</code></td>
+                        <td>Có</td>
+                        <td>
+                            HMAC SHA256 của chuỗi:<br>
+                            <code>METHOD + "\n" + PATH + "\n" + TIMESTAMP</code>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
 
-        <nav class="sidebar-nav">
-            <a href="<?= BASE_URL ?>/adminkaishop" class="nav-item" data-page="emails">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                    <polyline points="22,6 12,13 2,6" />
-                </svg>
-                <span>Quản lý Email</span>
-            </a>
-            <a href="<?= BASE_URL ?>/adminkaishop/expired" class="nav-item" data-page="expired">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="12" />
-                    <line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-                <span>Email hết hạn</span>
-            </a>
-            <a href="<?= BASE_URL ?>/adminkaishop/docs-domain" class="nav-item" data-page="docs-domain">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                    <line x1="12" y1="18" x2="12" y2="12" />
-                    <line x1="9" y1="15" x2="15" y2="15" />
-                </svg>
-                <span>Docs - Domain</span>
-            </a>
-            <a href="<?= BASE_URL ?>/adminkaishop/docs-api" class="nav-item active" data-page="docs-api">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="16 18 22 12 16 6" />
-                    <polyline points="8 6 2 12 8 18" />
-                </svg>
-                <span>Docs - API</span>
-            </a>
-        </nav>
-
-        <div class="sidebar-footer">
-            <div class="admin-info">
-                <span>
-                    <?= htmlspecialchars($admin['username']) ?>
-                </span>
+            <div class="hint-box">
+                Gợi ý bảo mật cao: chỉ cho phép IP riêng bằng `API_ALLOWED_IPS` trong `.env`.
             </div>
-            <button id="logoutBtn" class="btn-logout" title="Đăng xuất">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                    <polyline points="16 17 21 12 16 7" />
-                    <line x1="21" y1="12" x2="9" y2="12" />
-                </svg>
-            </button>
-        </div>
-    </aside>
+        </section>
 
-    <!-- Main Content -->
-    <main class="main-content">
-        <div class="docs-container">
-            <header class="docs-header">
-                <h1>Tài liệu API</h1>
-                <p>Hướng dẫn đầy đủ về các API của KaiMail - Dịch vụ Email tạm thời</p>
-            </header>
+        <section style="margin-top: 20px;">
+            <h2>Cách ký chữ ký (HMAC)</h2>
+            <div class="code-box"># Ví dụ với endpoint:
+# GET /kaiMail/api/admin/stats.php
 
-            <div class="docs-content">
-                <div class="alert-box info">
-                    <strong>Base URL:</strong> <code><?= BASE_URL ?></code>
+METHOD="GET"
+PATH="<?= htmlspecialchars($statsPath, ENT_QUOTES, 'UTF-8') ?>"
+TIMESTAMP=$(date +%s)
+SIGNATURE=$(printf "%s\n%s\n%s" "$METHOD" "$PATH" "$TIMESTAMP" | \
+  openssl dgst -sha256 -hmac "$API_SECRET_KEY" -r | awk '{print $1}')</div>
+        </section>
+
+        <section style="margin-top: 20px;">
+            <h2>Điểm cuối chính</h2>
+
+            <article class="endpoint-card">
+                <div class="endpoint-header">
+                    <span class="method-badge get">GET</span>
+                    <span class="endpoint-url">/api/admin/auth.php</span>
                 </div>
+                <p class="endpoint-description">Kiểm tra API key/secret còn hợp lệ hay không.</p>
+            </article>
 
-                <h2>Xác thực (Authentication)</h2>
-                <p>Các endpoint dành cho admin yêu cầu xác thực phiên làm việc (session). Admin phải đăng nhập qua
-                    <code>/adminkaishop/login</code>
-                </p>
-
-                <!-- User Email API -->
-                <h2>User Email API</h2>
-                <p>Các endpoint công khai để kiểm tra và lấy thông tin email.</p>
-
-                <div class="endpoint-card">
-                    <div class="endpoint-header">
-                        <span class="method-badge get">GET</span>
-                        <span class="endpoint-url">/api/emails</span>
-                    </div>
-                    <p class="endpoint-description">Kiểm tra xem email có tồn tại trong hệ thống hay không</p>
-
-                    <h4 style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 12px;">Tham số
-                        (Parameters)</h4>
-                    <table class="param-table">
-                        <thead>
-                            <tr>
-                                <th>Tên</th>
-                                <th>Kiểu</th>
-                                <th>Bắt buộc</th>
-                                <th>Mô tả</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><code>email</code></td>
-                                <td>string</td>
-                                <td>Có</td>
-                                <td>Địa chỉ email cần kiểm tra</td>
-                            </tr>
-                            <tr>
-                                <td><code>action</code></td>
-                                <td>string</td>
-                                <td>Không</td>
-                                <td>Loại hành động: "check" hoặc "get" (mặc định: "check")</td>
-                            </tr>
-                        </tbody>
-                    </table>
-
-                    <h4 style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 16px;">Ví dụ Response
-                        (Phản hồi)
-                    </h4>
-                    <pre><code>{
-  "exists": true,
-  "expired": false,
-  "email": "user@kaishop.id.vn",
-  "created_at": "2026-01-27 15:00:00"
-}</code></pre>
+            <article class="endpoint-card">
+                <div class="endpoint-header">
+                    <span class="method-badge get">GET</span>
+                    <span class="endpoint-url">/api/admin/stats.php</span>
                 </div>
+                <p class="endpoint-description">Lấy thống kê hệ thống.</p>
+            </article>
 
-                <div class="endpoint-card">
-                    <div class="endpoint-header">
-                        <span class="method-badge get">GET</span>
-                        <span class="endpoint-url">/api/messages</span>
-                    </div>
-                    <p class="endpoint-description">Lấy danh sách tin nhắn cho một email cụ thể</p>
-
-                    <h4 style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 12px;">Tham số
-                        (Parameters)</h4>
-                    <table class="param-table">
-                        <thead>
-                            <tr>
-                                <th>Tên</th>
-                                <th>Kiểu</th>
-                                <th>Bắt buộc</th>
-                                <th>Mô tả</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><code>email</code></td>
-                                <td>string</td>
-                                <td>Có</td>
-                                <td>Địa chỉ email</td>
-                            </tr>
-                        </tbody>
-                    </table>
-
-                    <h4 style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 16px;">Ví dụ Response
-                        (Phản hồi)
-                    </h4>
-                    <pre><code>{
-  "email": "user@kaishop.id.vn",
-  "messages": [
-    {
-      "id": 1,
-      "from_email": "sender@example.com",
-      "from_name": "Sender Name",
-      "subject": "Chào mừng!",
-      "body_text": "Chào mừng bạn đến với dịch vụ của chúng tôi",
-      "body_html": "&lt;p&gt;Chào mừng bạn đến với dịch vụ của chúng tôi&lt;/p&gt;",
-      "received_at": "2026-01-27 15:05:00",
-      "is_read": false
-    }
-  ]
-}</code></pre>
+            <article class="endpoint-card">
+                <div class="endpoint-header">
+                    <span class="method-badge get">GET</span>
+                    <span class="endpoint-url">/api/admin/emails.php?filter=active&page=1</span>
                 </div>
+                <p class="endpoint-description">Lấy danh sách email.</p>
+            </article>
 
-                <!-- Admin Email API -->
-                <h2>Admin Email API</h2>
-                <p>Các endpoint chỉ dành cho Admin để quản lý email. Yêu cầu xác thực.</p>
-
-                <div class="endpoint-card">
-                    <div class="endpoint-header">
-                        <span class="method-badge get">GET</span>
-                        <span class="endpoint-url">/api/admin/emails</span>
-                    </div>
-                    <p class="endpoint-description">Danh sách tất cả email với phân trang và bộ lọc</p>
-
-                    <h4 style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 12px;">Tham số
-                        (Parameters)</h4>
-                    <table class="param-table">
-                        <thead>
-                            <tr>
-                                <th>Tên</th>
-                                <th>Kiểu</th>
-                                <th>Mặc định</th>
-                                <th>Mô tả</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><code>filter</code></td>
-                                <td>string</td>
-                                <td>"active"</td>
-                                <td>Bộ lọc: "active" (đang dùng), "expired" (hết hạn), "all" (tất cả)</td>
-                            </tr>
-                            <tr>
-                                <td><code>expiry</code></td>
-                                <td>string</td>
-                                <td>""</td>
-                                <td>Loại thời hạn: "30days", "1year", "2years", "forever"</td>
-                            </tr>
-                            <tr>
-                                <td><code>search</code></td>
-                                <td>string</td>
-                                <td>""</td>
-                                <td>Tìm kiếm địa chỉ email</td>
-                            </tr>
-                            <tr>
-                                <td><code>page</code></td>
-                                <td>integer</td>
-                                <td>1</td>
-                                <td>Số trang</td>
-                            </tr>
-                            <tr>
-                                <td><code>limit</code></td>
-                                <td>integer</td>
-                                <td>20</td>
-                                <td>Số mục mỗi trang (tối đa: 100)</td>
-                            </tr>
-                        </tbody>
-                    </table>
-
-                    <h4 style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 16px;">Ví dụ Response
-                        (Phản hồi)
-                    </h4>
-                    <pre><code>{
-  "total": 150,
-  "page": 1,
-  "limit": 20,
-  "pages": 8,
-  "emails": [...]
-}</code></pre>
+            <article class="endpoint-card">
+                <div class="endpoint-header">
+                    <span class="method-badge post">POST</span>
+                    <span class="endpoint-url">/api/admin/emails.php</span>
                 </div>
-
-                <div class="endpoint-card">
-                    <div class="endpoint-header">
-                        <span class="method-badge post">POST</span>
-                        <span class="endpoint-url">/api/admin/emails</span>
-                    </div>
-                    <p class="endpoint-description">Tạo email mới (một hoặc nhiều)</p>
-
-                    <h4 style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 12px;">Dữ liệu gửi lên
-                        (Request Body)</h4>
-                    <table class="param-table">
-                        <thead>
-                            <tr>
-                                <th>Trường</th>
-                                <th>Kiểu</th>
-                                <th>Bắt buộc</th>
-                                <th>Mô tả</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><code>name_type</code></td>
-                                <td>string</td>
-                                <td>Không</td>
-                                <td>"vn", "en", hoặc "custom" (mặc định: "vn")</td>
-                            </tr>
-                            <tr>
-                                <td><code>email</code></td>
-                                <td>string</td>
-                                <td>Tùy điều kiện</td>
-                                <td>Tên email tùy chỉnh (bắt buộc nếu name_type=custom)</td>
-                            </tr>
-                            <tr>
-                                <td><code>domain</code></td>
-                                <td>string</td>
-                                <td>Không</td>
-                                <td>Tên miền (mặc định theo cấu hình hệ thống)</td>
-                            </tr>
-                            <tr>
-                                <td><code>expiry_type</code></td>
-                                <td>string</td>
-                                <td>Không</td>
-                                <td>"30days", "1year", "2years", "forever" (mặc định: "forever")</td>
-                            </tr>
-                            <tr>
-                                <td><code>quantity</code></td>
-                                <td>integer</td>
-                                <td>Không</td>
-                                <td>Số lượng email cần tạo (1-10, mặc định: 1)</td>
-                            </tr>
-                        </tbody>
-                    </table>
-
-                    <h4 style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 16px;">Ví dụ Request
-                    </h4>
-                    <pre><code>{
+                <p class="endpoint-description">Tạo email mới.</p>
+                <div class="code-box">{
   "name_type": "vn",
-  "domain": "kaishop.id.vn",
-  "expiry_type": "forever",
-  "quantity": 1
-}</code></pre>
+  "domain": "example.com"
+}</div>
+            </article>
 
-                    <h4 style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 16px;">Ví dụ Response
-                        (Phản hồi)
-                    </h4>
-                    <pre><code>{
-  "success": true,
-  "created": 1,
-  "emails": [
-    {
-      "id": 123,
-      "email": "nguyenvana@kaishop.id.vn",
-      "name_type": "vn",
-      "expiry_type": "forever",
-      "expires_at": null
-    }
-  ],
-  "errors": []
-}</code></pre>
+            <article class="endpoint-card">
+                <div class="endpoint-header">
+                    <span class="method-badge delete">DELETE</span>
+                    <span class="endpoint-url">/api/admin/emails.php</span>
                 </div>
-
-                <div class="endpoint-card">
-                    <div class="endpoint-header">
-                        <span class="method-badge delete">DELETE</span>
-                        <span class="endpoint-url">/api/admin/emails</span>
-                    </div>
-                    <p class="endpoint-description">Xóa một hoặc nhiều email</p>
-
-                    <h4 style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 12px;">Dữ liệu gửi lên
-                        (Request Body)</h4>
-                    <table class="param-table">
-                        <thead>
-                            <tr>
-                                <th>Trường</th>
-                                <th>Kiểu</th>
-                                <th>Mô tả</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><code>_method</code></td>
-                                <td>string</td>
-                                <td>Phải là "DELETE"</td>
-                            </tr>
-                            <tr>
-                                <td><code>ids</code></td>
-                                <td>array</td>
-                                <td>Mảng các ID email cần xóa</td>
-                            </tr>
-                        </tbody>
-                    </table>
-
-                    <h4 style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 16px;">Ví dụ Request
-                    </h4>
-                    <pre><code>{
-  "_method": "DELETE",
+                <p class="endpoint-description">Xóa email theo danh sách ID.</p>
+                <div class="code-box">{
   "ids": [1, 2, 3]
-}</code></pre>
+}</div>
+            </article>
+
+            <article class="endpoint-card">
+                <div class="endpoint-header">
+                    <span class="method-badge get">GET</span>
+                    <span class="endpoint-url">/api/messages.php?email=user@example.com</span>
                 </div>
+                <p class="endpoint-description">Lấy tin nhắn theo email (đã bảo vệ bằng API key/secret).</p>
+            </article>
+        </section>
 
-                <!-- Admin Stats API -->
-                <h2>Admin Stats API</h2>
+        <section style="margin-top: 20px;">
+            <h2>Ví dụ cURL đầy đủ</h2>
+            <div class="code-box">#!/usr/bin/env bash
+BASE="<?= htmlspecialchars(rtrim((string) BASE_URL, '/'), ENT_QUOTES, 'UTF-8') ?>"
+API_KEY="YOUR_API_ACCESS_KEY"
+API_SECRET="YOUR_API_SECRET_KEY"
+METHOD="GET"
+PATH="<?= htmlspecialchars($statsPath, ENT_QUOTES, 'UTF-8') ?>"
+TS=$(date +%s)
+SIG=$(printf "%s\n%s\n%s" "$METHOD" "$PATH" "$TS" | openssl dgst -sha256 -hmac "$API_SECRET" -r | awk '{print $1}')
 
-                <div class="endpoint-card">
-                    <div class="endpoint-header">
-                        <span class="method-badge get">GET</span>
-                        <span class="endpoint-url">/api/admin/stats</span>
-                    </div>
-                    <p class="endpoint-description">Lấy thống kê hệ thống</p>
+curl -X "$METHOD" "$BASE$PATH" \
+  -H "X-API-KEY: $API_KEY" \
+  -H "X-API-SECRET: $API_SECRET" \
+  -H "X-API-TIMESTAMP: $TS" \
+  -H "X-API-SIGNATURE: $SIG"</div>
+        </section>
 
-                    <h4 style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 16px;">Ví dụ Response
-                        (Phản hồi)
-                    </h4>
-                    <pre><code>{
-  "total_emails": 1525,
-  "active_emails": 1450,
-  "expired_emails": 75,
-  "total_messages": 3240
-}</code></pre>
-                </div>
-
-                <!-- Admin Messages API -->
-                <h2>Admin Messages API</h2>
-
-                <div class="endpoint-card">
-                    <div class="endpoint-header">
-                        <span class="method-badge get">GET</span>
-                        <span class="endpoint-url">/api/admin/messages</span>
-                    </div>
-                    <p class="endpoint-description">Lấy tin nhắn cho một email cụ thể (theo email_id) hoặc lấy một tin
-                        nhắn duy nhất (theo id)</p>
-
-                    <h4 style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 12px;">Tham số
-                        (Parameters)</h4>
-                    <table class="param-table">
-                        <thead>
-                            <tr>
-                                <th>Tên</th>
-                                <th>Kiểu</th>
-                                <th>Mô tả</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><code>email_id</code></td>
-                                <td>integer</td>
-                                <td>Lấy tất cả tin nhắn cho ID email này</td>
-                            </tr>
-                            <tr>
-                                <td><code>id</code></td>
-                                <td>integer</td>
-                                <td>Lấy một tin nhắn cụ thể theo ID</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="endpoint-card">
-                    <div class="endpoint-header">
-                        <span class="method-badge delete">DELETE</span>
-                        <span class="endpoint-url">/api/admin/messages</span>
-                    </div>
-                    <p class="endpoint-description">Xóa một hoặc nhiều tin nhắn</p>
-
-                    <h4 style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 12px;">Dữ liệu gửi lên
-                        (Request Body)</h4>
-                    <pre><code>{
-  "_method": "DELETE",
-  "ids": [1, 2, 3]
-}</code></pre>
-                </div>
-
-                <h2>Mã lỗi (Error Codes)</h2>
-                <table class="param-table">
-                    <thead>
-                        <tr>
-                            <th>Mã</th>
-                            <th>Ý nghĩa</th>
-                            <th>Mô tả</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><code>200</code></td>
-                            <td>OK</td>
-                            <td>Yêu cầu thành công</td>
-                        </tr>
-                        <tr>
-                            <td><code>201</code></td>
-                            <td>Created</td>
-                            <td>Tạo tài nguyên thành công</td>
-                        </tr>
-                        <tr>
-                            <td><code>400</code></td>
-                            <td>Bad Request</td>
-                            <td>Tham số yêu cầu không hợp lệ</td>
-                        </tr>
-                        <tr>
-                            <td><code>401</code></td>
-                            <td>Unauthorized</td>
-                            <td>Yêu cầu xác thực Admin</td>
-                        </tr>
-                        <tr>
-                            <td><code>404</code></td>
-                            <td>Not Found</td>
-                            <td>Không tìm thấy tài nguyên</td>
-                        </tr>
-                        <tr>
-                            <td><code>410</code></td>
-                            <td>Gone</td>
-                            <td>Email đã hết hạn</td>
-                        </tr>
-                        <tr>
-                            <td><code>500</code></td>
-                            <td>Internal Server Error</td>
-                            <td>Lỗi máy chủ nội bộ</td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <div class="alert-box success" style="margin-top: 32px;">
-                    <strong>Đã sẵn sàng!</strong> Tất cả các API hiện đang hoạt động và đã được lập tài liệu. Sử dụng
-                    các endpoint này để tích hợp KaiMail vào ứng dụng của bạn.
-                </div>
-            </div>
-        </div>
-    </main>
-
-    <script src="<?= BASE_URL ?>/js/admin.js"></script>
-</body>
-
-</html>
+        <section style="margin-top: 20px;">
+            <h2>Mã lỗi thường gặp</h2>
+            <table class="param-table">
+                <thead>
+                    <tr>
+                        <th>Mã</th>
+                        <th>Ý nghĩa</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>200</code></td>
+                        <td>Thành công</td>
+                    </tr>
+                    <tr>
+                        <td><code>401</code></td>
+                        <td>Thiếu/sai key, secret, timestamp hoặc signature</td>
+                    </tr>
+                    <tr>
+                        <td><code>403</code></td>
+                        <td>IP không nằm trong allowlist hoặc bắt buộc HTTPS</td>
+                    </tr>
+                    <tr>
+                        <td><code>405</code></td>
+                        <td>Sai HTTP method</td>
+                    </tr>
+                    <tr>
+                        <td><code>500</code></td>
+                        <td>Lỗi hệ thống</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </div>
+</div>
+<?php
+AdminLayout::end();

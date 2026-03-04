@@ -6,27 +6,18 @@
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/app.php';
-require_once __DIR__ . '/middleware/AuthMiddleware.php';
+require_once __DIR__ . '/middleware/ApiSecurity.php';
 require_once __DIR__ . '/services/BaseService.php';
 require_once __DIR__ . '/services/DomainService.php';
 require_once __DIR__ . '/services/EmailService.php';
 require_once __DIR__ . '/controllers/EmailController.php';
 
-// CORS headers
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, X-Secret-Key');
+ApiSecurity::setCorsHeaders();
 header('Content-Type: application/json; charset=utf-8');
-
-// Handle preflight
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
+ApiSecurity::handlePreflight();
 
 try {
-    // Authenticate
-    AuthMiddleware::authenticate();
+    ApiSecurity::requireApiAuth();
 
     // Get request info
     $method = $_SERVER['REQUEST_METHOD'];
@@ -94,8 +85,12 @@ try {
 
 } catch (Exception $e) {
     error_log("API Error: " . $e->getMessage());
+    $message = 'An error occurred';
+    if (EXPOSE_ERROR_DETAILS) {
+        $message = $e->getMessage();
+    }
     jsonResponse([
         'error' => 'Internal server error',
-        'message' => ENVIRONMENT === 'development' ? $e->getMessage() : 'An error occurred'
+        'message' => $message
     ], 500);
 }

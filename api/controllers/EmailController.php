@@ -26,7 +26,7 @@ class EmailController
         // Validate input
         $count = (int) ($input['count'] ?? 1);
         $nameType = $input['name_type'] ?? 'en';
-        $expiryType = $input['expiry_type'] ?? 'forever';
+        $expiryType = 'forever';
         $domain = strtolower(trim($input['domain'] ?? ''));
 
         // Validation
@@ -40,10 +40,6 @@ class EmailController
 
         if (!in_array($nameType, ['vn', 'en', 'custom'])) {
             jsonResponse(['error' => 'Invalid name_type. Must be: vn, en, or custom'], 400);
-        }
-
-        if (!in_array($expiryType, ['30days', '1year', '2years', 'forever'])) {
-            jsonResponse(['error' => 'Invalid expiry_type. Must be: 30days, 1year, 2years, or forever'], 400);
         }
 
         // Check domain exists

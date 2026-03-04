@@ -11,12 +11,12 @@
 
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/app.php';
-require_once __DIR__ . '/../../includes/Auth.php';
+require_once __DIR__ . '/../middleware/ApiSecurity.php';
 
 header('Content-Type: application/json; charset=utf-8');
-
-// Require admin login
-Auth::requireLogin();
+ApiSecurity::setCorsHeaders();
+ApiSecurity::handlePreflight();
+ApiSecurity::requireAdminOrApiAuth();
 
 $method = getMethod();
 $db = getDB();
@@ -32,19 +32,19 @@ try {
         $isActive = isset($data['is_active']) ? (int) $data['is_active'] : 1;
 
         if (empty($domain)) {
-            jsonResponse(['error' => 'Domain name is required'], 400);
+            jsonResponse(['error' => 'Tên domain là bắt buộc'], 400);
         }
 
         // Validate domain format
         if (!preg_match('/^[a-z0-9.-]+\.[a-z]{2,}$/', $domain)) {
-            jsonResponse(['error' => 'Invalid domain format'], 400);
+            jsonResponse(['error' => 'Định dạng domain không hợp lệ'], 400);
         }
 
         // Check if domain already exists
         $stmt = $db->prepare("SELECT id FROM domains WHERE domain = ?");
         $stmt->execute([$domain]);
         if ($stmt->fetch()) {
-            jsonResponse(['error' => 'Domain already exists'], 400);
+            jsonResponse(['error' => 'Domain đã tồn tại'], 400);
         }
 
         // Insert domain
@@ -89,7 +89,7 @@ try {
         $isActive = isset($data['is_active']) ? (int) $data['is_active'] : null;
 
         if (!$id) {
-            jsonResponse(['error' => 'Domain ID is required'], 400);
+            jsonResponse(['error' => 'Thiếu ID domain'], 400);
         }
 
         if ($isActive !== null) {
@@ -108,7 +108,7 @@ try {
         $id = (int) ($data['id'] ?? 0);
 
         if (!$id) {
-            jsonResponse(['error' => 'Domain ID is required'], 400);
+            jsonResponse(['error' => 'Thiếu ID domain'], 400);
         }
 
         // Check if domain is in use
@@ -122,7 +122,7 @@ try {
 
         if ($result['count'] > 0) {
             jsonResponse([
-                'error' => 'Cannot delete domain that has existing emails',
+                'error' => 'Không thể xóa domain đang có email',
                 'email_count' => $result['count']
             ], 400);
         }
@@ -132,10 +132,10 @@ try {
 
         jsonResponse(['success' => true]);
     } else {
-        jsonResponse(['error' => 'Method not allowed'], 405);
+        jsonResponse(['error' => 'Phương thức không được hỗ trợ'], 405);
     }
 
 } catch (Exception $e) {
     error_log("Admin domains error: " . $e->getMessage());
-    jsonResponse(['error' => 'Internal server error'], 500);
+    jsonResponse(['error' => 'Lỗi hệ thống'], 500);
 }

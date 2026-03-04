@@ -94,15 +94,19 @@ function isAjax(): bool
  */
 function getMethod(): string
 {
-    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 
-    // Check for _method override in REQUEST (query/post)
-    if (isset($_REQUEST['_method'])) {
-        return strtoupper($_REQUEST['_method']);
-    }
-
-    // Check for _method in JSON body
+    // Allow override only for POST requests.
     if ($method === 'POST') {
+        $headerOverride = $_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE'] ?? '';
+        if ($headerOverride !== '') {
+            return strtoupper($headerOverride);
+        }
+
+        if (isset($_POST['_method'])) {
+            return strtoupper((string) $_POST['_method']);
+        }
+
         $input = getJsonInput();
         if (isset($input['_method'])) {
             return strtoupper($input['_method']);

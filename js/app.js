@@ -11,11 +11,12 @@ class KaiMail {
         this.isLoading = false;
         this.longPollActive = false;
         this.lastCheck = null;
+        this.vnTimeZone = 'Asia/Ho_Chi_Minh';
+        this.vnLocale = 'vi-VN';
         // Get base path from config to avoid rewrite issues
         this.basePath = window.KAIMAIL_CONFIG?.baseUrl || '';
         // Remove trailing slash if present to avoid double slashes
         this.basePath = this.basePath.replace(/\/$/, '');
-
         this.init();
     }
 
@@ -35,7 +36,6 @@ class KaiMail {
         this.modalFrom = document.getElementById('modalFrom');
         this.modalBody = document.getElementById('modalBody');
         this.closeModalBtn = document.getElementById('closeModal');
-        this.toast = document.getElementById('toast');
 
         // Event Listeners
         this.getMailBtn.addEventListener('click', () => this.getMail());
@@ -48,7 +48,7 @@ class KaiMail {
         // });
         // this.emailInput.addEventListener('input', () => this.formatEmailInput());
         this.copyBtn.addEventListener('click', () => this.copyEmail()); // Restored
-        this.refreshBtn.addEventListener('click', () => this.loadMessages());
+        this.refreshBtn.addEventListener('click', () => this.handleManualRefresh());
         this.closeModalBtn.addEventListener('click', () => this.closeModal());
         this.modal.querySelector('.modal-backdrop').addEventListener('click', () => this.closeModal());
 
@@ -106,6 +106,70 @@ class KaiMail {
         // this.emailInput.value = value;
     }
 
+    parseDateInput(dateValue) {
+        if (dateValue instanceof Date) {
+            return Number.isNaN(dateValue.getTime()) ? null : dateValue;
+        }
+
+        const raw = String(dateValue || '').trim();
+        if (raw === '') return null;
+
+        // MySQL datetime "YYYY-MM-DD HH:mm:ss" được hiểu theo giờ VN (+07:00).
+        const sqlMatch = raw.match(
+            /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/
+        );
+        const hasZone = /[zZ]$|[+-]\d{2}:\d{2}$/.test(raw);
+
+        if (sqlMatch && !hasZone) {
+            const year = Number(sqlMatch[1]);
+            const month = Number(sqlMatch[2]);
+            const day = Number(sqlMatch[3]);
+            const hour = Number(sqlMatch[4] || '0');
+            const minute = Number(sqlMatch[5] || '0');
+            const second = Number(sqlMatch[6] || '0');
+            const utcMs = Date.UTC(year, month - 1, day, hour - 7, minute, second);
+            return new Date(utcMs);
+        }
+
+        const parsed = new Date(raw);
+        if (Number.isNaN(parsed.getTime())) {
+            return null;
+        }
+        return parsed;
+    }
+
+    getVnTimeParts(dateValue) {
+        const parsedDate = this.parseDateInput(dateValue);
+        if (!parsedDate) return null;
+
+        const parts = new Intl.DateTimeFormat('en-GB', {
+            timeZone: this.vnTimeZone,
+            hour12: false,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+        }).formatToParts(parsedDate);
+
+        const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+        return {
+            year: map.year,
+            month: map.month,
+            day: map.day,
+            hour: map.hour,
+            minute: map.minute,
+            second: map.second,
+        };
+    }
+
+    getCurrentSqlDateTimeVN() {
+        const nowParts = this.getVnTimeParts(new Date());
+        if (!nowParts) return '';
+        return `${nowParts.year}-${nowParts.month}-${nowParts.day} ${nowParts.hour}:${nowParts.minute}:${nowParts.second}`;
+    }
+
     async getMail() {
         let email = this.emailInput.value.trim().toLowerCase();
 
@@ -117,7 +181,7 @@ class KaiMail {
 
         // Require full email with @
         if (!email.includes('@')) {
-            this.showToast('Vui lòng nhập email đầy đủ (ví dụ: user@domain.com)', 'error');
+            this.showToast('Vui lòng nhập đầy đủ email (ví dụ: user@domain.com)', 'error');
             this.emailInput.focus();
             return;
         }
@@ -134,7 +198,7 @@ class KaiMail {
                 } else if (response.status === 410) {
                     this.showToast('Email đã hết hạn', 'error');
                 } else {
-                    this.showToast(data.error || 'Có lỗi xảy ra', 'error');
+                    this.showToast(data.error || 'Đã xảy ra lỗi', 'error');
                 }
                 return;
             }
@@ -151,9 +215,7 @@ class KaiMail {
             // Show copy button
             this.copyBtn.style.display = 'flex';
 
-            // Show current email
-            // this.emailDisplay.textContent = email;
-            // this.currentEmailDiv.classList.remove('hidden');
+            // Show inbox section
             this.inboxSection.classList.remove('hidden');
 
             // Load messages
@@ -164,7 +226,7 @@ class KaiMail {
 
         } catch (error) {
             console.error('Error:', error);
-            this.showToast('Không thể kết nối server', 'error');
+            this.showToast('Không thể kết nối đến máy chủ', 'error');
         } finally {
             this.getMailBtn.disabled = false;
             this.getMailBtn.innerHTML = `
@@ -177,10 +239,22 @@ class KaiMail {
         }
     }
 
-    async loadMessages() {
-        if (!this.currentEmail || this.isLoading) return;
+    async handleManualRefresh() {
+        await this.loadMessages({ manual: true });
+    }
+
+    async loadMessages(options = {}) {
+        const { manual = false } = options;
+
+        if (!this.currentEmail) {
+            if (manual) this.emailInput.focus();
+            return false;
+        }
+
+        if (this.isLoading) return false;
 
         this.isLoading = true;
+        this.refreshBtn.disabled = true;
         this.refreshBtn.classList.add('spinning');
 
         // Ensure spinner shows for at least 500ms
@@ -198,13 +272,26 @@ class KaiMail {
                 throw new Error(data.error || 'Failed to load messages');
             }
 
-            this.renderMessages(data.messages);
+            this.renderMessages(data.messages || []);
             this.updateUnreadBadge(data.unread);
+
+            // Update lastCheck from server time to ensure synchronization
+            if (data.server_time) {
+                this.lastCheck = data.server_time;
+                // Update polling manager if active
+                if (this.pollingManager) {
+                    this.pollingManager.updateLastCheck(this.lastCheck);
+                }
+            }
+
+            return true;
 
         } catch (error) {
             console.error('Error loading messages:', error);
+            return false;
         } finally {
             this.isLoading = false;
+            this.refreshBtn.disabled = false;
             this.refreshBtn.classList.remove('spinning');
             // Reset timer so we don't refresh again immediately if user just clicked
             this.startAutoRefresh();
@@ -230,7 +317,7 @@ class KaiMail {
             <div class="message-item ${msg.is_read ? '' : 'unread'}" data-id="${msg.id}">
                 <div class="message-dot"></div>
                 <div class="message-content">
-                    <div class="message-sender">${this.escapeHtml(msg.from_name || this.extractSender(msg.from_email))}</div>
+                    <div class="message-sender">${this.getDisplayName(msg)}</div>
                     <div class="message-subject">${this.escapeHtml(msg.subject)}</div>
                     <div class="message-preview">${this.escapeHtml(msg.preview || '')}</div>
                 </div>
@@ -255,18 +342,24 @@ class KaiMail {
                 throw new Error(message.error || 'Failed to load message');
             }
 
+            // Set subject and from info
             this.modalSubject.textContent = message.subject;
-            this.modalFrom.innerHTML = `From: <strong>${this.escapeHtml(message.from_email)}</strong> &nbsp;•&nbsp; ${this.formatDateTime(message.received_at)}`;
+            this.modalFrom.innerHTML = `From: <strong>${this.getDisplayName(message)}</strong> &nbsp;|&nbsp; ${this.formatDateTime(message.received_at)}`;
 
-            // Render body
+            // Render body with same logic as admin
+            const body = this.modalBody;
             if (message.body_html) {
-                this.modalBody.className = 'modal-body';
-                this.modalBody.innerHTML = message.body_html;
+                // HTML email - use .email-body class for proper CSS styling
+                body.className = 'modal-body email-body';
+                body.innerHTML = message.body_html;
             } else {
-                this.modalBody.className = 'modal-body text-only';
-                this.modalBody.textContent = message.body_text || '(No content)';
+                // Plain text email
+                body.className = 'modal-body text-only';
+                body.textContent = message.body_text || '(No content)';
+                body.style.whiteSpace = 'pre-wrap';
             }
 
+            // Show modal
             this.modal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
 
@@ -297,7 +390,7 @@ class KaiMail {
         if (!this.currentEmail) return;
 
         navigator.clipboard.writeText(this.currentEmail).then(() => {
-            this.showToast('✓ Email copied to clipboard!', 'success');
+            this.showToast('Đã sao chép email vào clipboard', 'success');
         }).catch(() => {
             // Fallback
             const input = document.createElement('input');
@@ -306,14 +399,22 @@ class KaiMail {
             input.select();
             document.execCommand('copy');
             document.body.removeChild(input);
-            this.showToast('✓ Email copied to clipboard!', 'success');
+            this.showToast('Đã sao chép email vào clipboard', 'success');
         });
     }
 
-    updateUnreadBadge(count) {
+    updateUnreadBadge(count, animate = false) {
         if (count > 0) {
             this.unreadBadge.textContent = count;
             this.unreadBadge.classList.remove('hidden');
+
+            // Add pulse animation if requested
+            if (animate) {
+                this.unreadBadge.classList.add('updated');
+                setTimeout(() => {
+                    this.unreadBadge.classList.remove('updated');
+                }, 500);
+            }
         } else {
             this.unreadBadge.classList.add('hidden');
         }
@@ -321,53 +422,106 @@ class KaiMail {
 
     startLongPolling() {
         this.stopLongPolling();
+
+        // Initialize Long Polling Manager
+        if (!this.pollingManager) {
+            this.pollingManager = new LongPollingManager({
+                basePath: this.basePath,
+                onNewMessages: (messages, count) => this.handleNewMessages(messages, count),
+                onError: (error, retryCount) => {
+                    console.error(`Long polling error (retry ${retryCount}):`, error);
+                },
+                onStatusChange: (status) => {
+                    console.log('Long polling status:', status);
+                }
+            });
+        }
+
+        // Start polling
+        // Use lastCheck from server if available, otherwise fallback to local time calculation
+        if (!this.lastCheck) {
+            this.lastCheck = this.getCurrentSqlDateTimeVN();
+        }
+
+        this.pollingManager.start(this.currentEmailId, this.lastCheck);
         this.longPollActive = true;
-        this.lastCheck = new Date().toISOString().slice(0, 19).replace('T', ' ');
-        this.pollForMessages();
     }
 
     stopLongPolling() {
         this.longPollActive = false;
-        if (this.refreshInterval) {
-            clearInterval(this.refreshInterval);
-            this.refreshInterval = null;
+        if (this.pollingManager) {
+            this.pollingManager.stop();
         }
     }
 
-    async pollForMessages() {
-        if (!this.longPollActive || !this.currentEmailId) return;
+    /**
+     * Handle new messages from long polling
+     * Smart update - only prepend new messages, no full re-render
+     */
+    async handleNewMessages(messages, count) {
+        if (!messages || messages.length === 0) return;
 
-        try {
-            const response = await fetch(
-                `${this.basePath}/api/poll.php?email_id=${this.currentEmailId}&last_check=${encodeURIComponent(this.lastCheck)}`
-            );
-
-            const data = await response.json();
-
-            if (response.ok && data.has_new && data.messages.length > 0) {
-                // New messages arrived - update UI
-                this.lastCheck = data.last_check;
-
-                // Reload full message list to get proper ordering
-                await this.loadMessages();
-
-                // Show notification
-                this.showToast(`📬 ${data.count} new message${data.count > 1 ? 's' : ''}!`, 'success');
-            } else if (response.ok) {
-                // No new messages, update timestamp
-                this.lastCheck = data.last_check;
-            }
-        } catch (error) {
-            console.error('Long polling error:', error);
-            // Fall back to interval polling on error
-            await new Promise(resolve => setTimeout(resolve, 5000));
+        // Update last check timestamp
+        if (this.pollingManager) {
+            this.lastCheck = this.getCurrentSqlDateTimeVN();
+            this.pollingManager.updateLastCheck(this.lastCheck);
         }
 
-        // Continue polling if still active
-        if (this.longPollActive) {
-            // Small delay before next poll to prevent rapid requests
-            setTimeout(() => this.pollForMessages(), 100);
-        }
+        this.showToast(`${count} email mới`, 'success', 'Tin nhắn mới');
+
+        // Smart UI update - prepend new messages with animation
+        this.prependNewMessages(messages);
+
+        // Update unread badge with animation
+        const currentUnread = parseInt(this.unreadBadge.textContent) || 0;
+        this.updateUnreadBadge(currentUnread + count, true);
+    }
+
+    /**
+     * Prepend new messages to the list with smooth animation
+     * No flash, no full re-render
+     */
+    prependNewMessages(messages) {
+        if (!messages || messages.length === 0) return;
+
+        // Ensure messages list is visible
+        this.emptyState.classList.add('hidden');
+        this.loadingState.classList.add('hidden');
+        this.messagesList.classList.remove('hidden');
+
+        // Preserve scroll position
+        const scrollTop = this.messagesList.scrollTop;
+
+        // Create HTML for new messages
+        const newMessagesHtml = messages.map(msg => `
+            <div class="message-item ${msg.is_read ? '' : 'unread'} new-message" data-id="${msg.id}">
+                <div class="message-dot new-indicator"></div>
+                <div class="message-content">
+                    <div class="message-sender">${this.escapeHtml(msg.from_name || msg.from_email)}</div>
+                    <div class="message-subject">${this.escapeHtml(msg.subject)}</div>
+                    <div class="message-preview">${this.escapeHtml(msg.preview || '')}</div>
+                </div>
+                <div class="message-time">${this.formatTime(msg.received_at)}</div>
+            </div>
+        `).join('');
+
+        // Prepend to list
+        this.messagesList.insertAdjacentHTML('afterbegin', newMessagesHtml);
+
+        // Restore scroll position
+        this.messagesList.scrollTop = scrollTop;
+
+        // Add click listeners to new messages
+        const newItems = this.messagesList.querySelectorAll('.message-item.new-message');
+        newItems.forEach(item => {
+            item.addEventListener('click', () => this.openMessage(item.dataset.id));
+
+            // Remove animation class after animation completes
+            setTimeout(() => {
+                item.classList.remove('new-message');
+                item.querySelector('.message-dot')?.classList.remove('new-indicator');
+            }, 1500);
+        });
     }
 
     // Keep this for manual refresh button
@@ -376,28 +530,77 @@ class KaiMail {
         // Kept for compatibility
     }
 
-    showToast(message, type = '') {
-        this.toast.textContent = message;
-        this.toast.className = `toast show ${type}`;
+    showToast(message, type = '', title = '') {
+        const iconMap = {
+            success: 'success',
+            error: 'error',
+            warning: 'warning',
+            info: 'info'
+        };
 
-        setTimeout(() => {
-            this.toast.className = 'toast';
-        }, 3000);
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: iconMap[type] || 'info',
+            title: title || message,
+            text: title ? message : '',
+            showConfirmButton: false,
+            timer: type === 'error' ? 4500 : 3000,
+            timerProgressBar: true,
+            customClass: {
+                popup: 'km-toast'
+            },
+            didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer);
+                toast.addEventListener('mouseleave', Swal.resumeTimer);
+            }
+        });
+    }
+
+    getDisplayName(msg) {
+        let name = msg.from_name;
+        const email = msg.from_email || '';
+
+        // Prefer name if it exists and isn't just the email
+        if (name && name !== email) {
+            // Filter out ugly names like "Em7877" or "bounces+..."
+            if (/^Em\d+$/i.test(name) || name.includes('bounces+')) {
+                // fall through to email processing
+            } else {
+                return this.escapeHtml(name);
+            }
+        }
+
+        // Smart email extraction
+        if (email.includes('openai.com')) return 'OpenAI';
+        if (email.includes('facebook.com')) return 'Facebook';
+        if (email.includes('google.com')) return 'Google';
+
+        // Extract name from email
+        const match = email.match(/^([^@]+)/);
+        if (match) {
+            let part = match[1];
+            // Remove +tag if present
+            if (part.includes('+')) part = part.split('+')[0];
+            // Capitalize
+            return this.escapeHtml(part.charAt(0).toUpperCase() + part.slice(1));
+        }
+
+        return this.escapeHtml(email);
     }
 
     extractSender(email) {
+        // Legacy, redirected to getDisplayName logic but simpler
         if (!email) return 'Unknown';
-        const match = email.match(/@([^.]+)/);
-        if (match) {
-            return match[1].charAt(0).toUpperCase() + match[1].slice(1);
-        }
+        if (email.includes('openai.com')) return 'OpenAI';
         return email.split('@')[0];
     }
 
     formatTime(dateStr) {
-        const date = new Date(dateStr);
-        const now = new Date();
-        const diff = now - date;
+        const date = this.parseDateInput(dateStr);
+        if (!date) return '';
+
+        const diff = Date.now() - date.getTime();
 
         const minutes = Math.floor(diff / 60000);
         const hours = Math.floor(diff / 3600000);
@@ -408,12 +611,15 @@ class KaiMail {
         if (hours < 24) return `${hours} giờ trước`;
         if (days < 7) return `${days} ngày trước`;
 
-        return date.toLocaleDateString('vi-VN');
+        const parts = this.getVnTimeParts(date);
+        if (!parts) return '';
+        return `${parts.day}/${parts.month}/${parts.year}`;
     }
 
     formatDateTime(dateStr) {
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('vi-VN') + ' ' + date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        const parts = this.getVnTimeParts(dateStr);
+        if (!parts) return '';
+        return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}`;
     }
 
     escapeHtml(str) {
@@ -428,3 +634,4 @@ class KaiMail {
 document.addEventListener('DOMContentLoaded', () => {
     window.kaimail = new KaiMail();
 });
+

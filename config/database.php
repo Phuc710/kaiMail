@@ -21,10 +21,22 @@ function getDB(): PDO
                 PDO::ATTR_EMULATE_PREPARES => false,
             ];
             $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
-            $pdo->exec("SET time_zone = '+07:00';");
+
+            $dbTimezone = DB_TIMEZONE;
+            if (preg_match('/^[+-](0\d|1[0-4]):[0-5]\d$/', $dbTimezone) !== 1) {
+                $dbTimezone = '+00:00';
+            }
+
+            $pdo->exec("SET time_zone = '{$dbTimezone}';");
         } catch (PDOException $e) {
+            error_log("Database connection failed: " . $e->getMessage());
             http_response_code(500);
-            die(json_encode(['error' => 'Database connection failed']));
+            header('Content-Type: application/json; charset=utf-8');
+            $response = ['error' => 'Database connection failed'];
+            if (EXPOSE_ERROR_DETAILS) {
+                $response['message'] = $e->getMessage();
+            }
+            die(json_encode($response));
         }
     }
 

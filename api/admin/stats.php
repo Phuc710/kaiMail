@@ -8,14 +8,15 @@
 
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/app.php';
-require_once __DIR__ . '/../../includes/Auth.php';
+require_once __DIR__ . '/../middleware/ApiSecurity.php';
 
 header('Content-Type: application/json; charset=utf-8');
-
-Auth::requireLogin();
+ApiSecurity::setCorsHeaders();
+ApiSecurity::handlePreflight();
+ApiSecurity::requireAdminOrApiAuth();
 
 if (getMethod() !== 'GET') {
-    jsonResponse(['error' => 'Method not allowed'], 405);
+    jsonResponse(['error' => 'Phương thức không được hỗ trợ'], 405);
 }
 
 try {
@@ -73,10 +74,11 @@ try {
         'unread_messages' => (int) $unreadMessages,
         'by_expiry' => $byExpiry,
         'recent_emails' => (int) $recentEmails,
-        'recent_messages' => (int) $recentMessages
+        'recent_messages' => (int) $recentMessages,
+        'server_time' => date('Y-m-d H:i:s')
     ]);
 
 } catch (Exception $e) {
     error_log("Stats error: " . $e->getMessage());
-    jsonResponse(['error' => 'Internal server error'], 500);
+    jsonResponse(['error' => 'Lỗi hệ thống'], 500);
 }

@@ -1,77 +1,90 @@
 <?php
 /**
- * Long Polling API for Messages
- * KaiMail - Temp Mail System
+ * Long Polling API
+ * Allows real-time checking of new messages
  * 
- * Returns new messages for an email after a specific timestamp
+ * GET /api/poll.php?email_id=123&last_check=2024-01-01 12:00:00
  */
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/app.php';
+require_once __DIR__ . '/middleware/ApiSecurity.php';
 
+// Disable caching strongly
 header('Content-Type: application/json; charset=utf-8');
-
-$method = getMethod();
-$db = getDB();
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Cache-Control: post-check=0, pre-check=0', false);
+header('Pragma: no-cache');
+ApiSecurity::setCorsHeaders();
+ApiSecurity::handlePreflight();
+ApiSecurity::requireApiAuth();
 
 try {
-    if ($method === 'GET') {
-        $emailId = (int) ($_GET['email_id'] ?? 0);
-        $lastCheck = $_GET['last_check'] ?? date('Y-m-d H:i:s', strtotime('-1 hour'));
-        $timeout = 30; // 30 seconds timeout
-        $startTime = time();
+    $emailId = (int) ($_GET['email_id'] ?? 0);
+    $lastCheck = $_GET['last_check'] ?? date('Y-m-d H:i:s');
 
-        if (!$emailId) {
-            jsonResponse(['error' => 'email_id required'], 400);
-        }
+    // Safety limit from environment configuration
+    $maxTime = LONG_POLL_MAX_SECONDS;
+    $sleepSeconds = LONG_POLL_SLEEP_SECONDS;
+    $startTime = time();
+    $db = getDB();
 
-        // Long polling loop
-        while ((time() - $startTime) < $timeout) {
-            // Check for new messages
-            $stmt = $db->prepare("
+    if (!$emailId) {
+        jsonResponse(['error' => 'email_id required'], 400);
+    }
+
+    // Prepare statement once
+    // Count unread instead of fetching all for check
+    $checkSql = "SELECT COUNT(*) FROM messages WHERE email_id = ? AND received_at > ?";
+    $stmt = $db->prepare($checkSql);
+
+    while (time() - $startTime < $maxTime) {
+        // Clear statement cursor (if any)
+        $stmt->closeCursor();
+
+        // Execute check
+        $stmt->execute([$emailId, $lastCheck]);
+        $count = $stmt->fetchColumn();
+
+        if ($count > 0) {
+            // Found new messages! Fetch them
+            $getSql = "
                 SELECT id, from_email, from_name, subject, is_read, received_at,
-                       UNIX_TIMESTAMP(received_at) as ts,
                        LEFT(body_text, 100) as preview
                 FROM messages 
                 WHERE email_id = ? AND received_at > ?
                 ORDER BY received_at DESC
-            ");
-            $stmt->execute([$emailId, $lastCheck]);
-            $newMessages = $stmt->fetchAll();
+            ";
+            $getStmt = $db->prepare($getSql);
+            $getStmt->execute([$emailId, $lastCheck]);
+            $messages = $getStmt->fetchAll();
 
-            if (count($newMessages) > 0) {
-                // Process messages
-                foreach ($newMessages as &$msg) {
-                    if (strpos($msg['subject'], '=?') === 0) {
-                        $msg['subject'] = iconv_mime_decode($msg['subject'], 0, "UTF-8");
-                    }
-                    if (strpos($msg['preview'], '=') !== false) {
-                        $msg['preview'] = quoted_printable_decode($msg['preview']);
-                    }
-                }
-
-                jsonResponse([
-                    'has_new' => true,
-                    'count' => count($newMessages),
-                    'messages' => $newMessages,
-                    'last_check' => date('Y-m-d H:i:s')
-                ]);
-            }
-
-            // Sleep for a bit before checking again
-            usleep(500000); // 0.5 seconds
+            // Return immediately
+            jsonResponse([
+                'has_new' => true,
+                'count' => $count,
+                'messages' => $messages,
+                'last_check' => date('Y-m-d H:i:s')
+            ]);
         }
 
-        // Timeout - no new messages
-        jsonResponse([
-            'has_new' => false,
-            'count' => 0,
-            'messages' => [],
-            'last_check' => date('Y-m-d H:i:s')
-        ]);
-    } else {
-        jsonResponse(['error' => 'Method not allowed'], 405);
+        // Wait 1 second before next check
+        // Using sleep helps reduce CPU usage
+        sleep($sleepSeconds);
+
+        // Close connection during sleep if possible to avoid connection limit?
+        // No, keep persistent is better for short poll.
     }
+
+    // Timeout reached, return empty (client will reconnect)
+    jsonResponse([
+        'has_new' => false,
+        'count' => 0,
+        'last_check' => date('Y-m-d H:i:s')
+    ]);
+
 } catch (Exception $e) {
-    jsonResponse(['error' => 'Internal server error'], 500);
+    // Log error but don't expose details
+    error_log("Polling error: " . $e->getMessage());
+    jsonResponse(['error' => 'Polling failed'], 500);
 }

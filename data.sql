@@ -1,9 +1,17 @@
+-- ============================================
+-- KaiMail - Complete Database Setup
+-- ============================================
+-- Database: kaimail
+-- Created: 2026-03-03
+-- Version: 1.0
 
+-- DROP DATABASE IF EXISTS kaimail;
 CREATE DATABASE IF NOT EXISTS kaimail CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE kaimail;
 
 -- ============================================
--- Bảng domains - Quản lý tên miền
+-- TABLE: domains
+-- Description: Quản lý tên miền email
 -- ============================================
 CREATE TABLE IF NOT EXISTS domains (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -15,7 +23,8 @@ CREATE TABLE IF NOT EXISTS domains (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
--- Bảng emails - Email tạm thời
+-- TABLE: emails
+-- Description: Email tạm thời được tạo
 -- ============================================
 CREATE TABLE IF NOT EXISTS emails (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -26,7 +35,6 @@ CREATE TABLE IF NOT EXISTS emails (
     expires_at DATETIME NULL,
     is_expired TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
     INDEX idx_email (email),
     INDEX idx_domain_id (domain_id),
@@ -35,7 +43,8 @@ CREATE TABLE IF NOT EXISTS emails (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
--- Bảng messages - Email nhận được
+-- TABLE: messages
+-- Description: Email nhận được bởi temp mail
 -- ============================================
 CREATE TABLE IF NOT EXISTS messages (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -54,23 +63,34 @@ CREATE TABLE IF NOT EXISTS messages (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
--- Bảng settings - Cấu hình hệ thống 
+-- TABLE: settings
+-- Description: Cấu hình hệ thống toàn cục
 -- ============================================
 CREATE TABLE IF NOT EXISTS settings (
     id INT AUTO_INCREMENT PRIMARY KEY,
     setting_key VARCHAR(100) NOT NULL UNIQUE,
-    setting_value TEXT
+    setting_value TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_key (setting_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
--- Insert dữ liệu mặc định
+-- DEFAULT DATA INSERTION
 -- ============================================
 
--- Domain mặc định
+-- Default Domains
 INSERT IGNORE INTO domains (domain, is_active) VALUES 
-('kaishop.id.vn', 1);
+('kaishop.id.vn', 1),
+('trongnghia.store', 1);
 
--- Cấu hình hệ thống
+-- System Settings
 INSERT IGNORE INTO settings (setting_key, setting_value) VALUES 
 ('webhook_secret', '65a276de438f97d2b4496724e59d18d443168d3d2ed'),
-('default_domain', 'kaishop.id.vn');
+('default_domain', 'kaishop.id.vn'),
+('primary_url', 'https://tmail.kaishop.id.vn'),
+('api_domains', 'kaishop.id.vn,trongnghia.store'),
+('app_name', 'KaiMail'),
+('app_version', '1.0'),
+('maintenance_mode', '0');
+

@@ -1,58 +1,98 @@
 <?php
 
-$hostname = $_SERVER['HTTP_HOST'] ?? 'localhost';
-define('ENVIRONMENT', getenv('APP_ENV') ?: ($hostname === 'tmail.kaishop.id.vn' ? 'production' : 'development'));
+require_once __DIR__ . '/env.php';
 
-// ======================
-// APPLICATION SETTINGS
-// ======================
-$config = [
-    'development' => [
-        'base_url' => 'http://localhost/kaiMail',
-        'production_domain' => '',  // Not used in dev
-    ],
-    'production' => [
-        'base_url' => 'https://tmail.kaishop.id.vn',
-        'production_domain' => 'tmail.kaishop.id.vn',
-    ],
-];
+loadEnvFile(dirname(__DIR__) . '/.env');
 
-define('BASE_URL', $config[ENVIRONMENT]['base_url']);
-define('PRODUCTION_DOMAIN', $config[ENVIRONMENT]['production_domain'] ?? '');
+$defaultEnvironment = 'development';
+$environment = env('APP_ENV', $defaultEnvironment);
 
-// DATABASE CONFIGURATION
-// ======================
-if (ENVIRONMENT === 'production') {
-    define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
-    define('DB_NAME', getenv('DB_NAME') ?: 'kaishopi_tmail');
-    define('DB_USER', getenv('DB_USER') ?: 'kaishopi_tmail');
-    define('DB_PASS', getenv('DB_PASS') ?: 'YsRdaEMbhSDSaRgUd6rb');
-} else {
-    define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
-    define('DB_NAME', getenv('DB_NAME') ?: 'kaimail');
-    define('DB_USER', getenv('DB_USER') ?: 'root');
-    define('DB_PASS', getenv('DB_PASS') ?: '');
+if (!is_string($environment) || $environment === '') {
+    $environment = $defaultEnvironment;
 }
-define('DB_CHARSET', 'utf8mb4');
 
-// ======================
-// WEBHOOK & SECURITY
-// ======================
-define('WEBHOOK_SECRET', getenv('WEBHOOK_SECRET') ?: '65a276de438f97d2b4496724e59d18d443168d3d2ed');
+define('ENVIRONMENT', $environment);
+define('IS_PRODUCTION', ENVIRONMENT === 'production');
 
-// ======================
-// SESSION SETTINGS
-// ======================
-define('SESSION_NAME', 'kaimail_session');
-define('SESSION_LIFETIME', 86400); // 24 hours
+$configuredBaseUrl = (string) env('APP_BASE_URL', 'http://localhost/kaiMail');
+$requestHost = '';
+$requestScheme = 'http';
 
-// ======================
-// TIMEZONE
-// ======================
-date_default_timezone_set('Asia/Ho_Chi_Minh');
+if (PHP_SAPI !== 'cli') {
+    $requestHost = (string) ($_SERVER['HTTP_HOST'] ?? '');
+    $https = $_SERVER['HTTPS'] ?? '';
+    $serverPort = (string) ($_SERVER['SERVER_PORT'] ?? '');
+    $requestScheme = (!empty($https) && strtolower((string) $https) !== 'off') || $serverPort === '443'
+        ? 'https'
+        : 'http';
+}
 
-// ======================
-// ERROR REPORTING
-// ======================
+if ($requestHost !== '') {
+    $parsedBaseUrl = parse_url($configuredBaseUrl);
+    $configuredHost = strtolower((string) ($parsedBaseUrl['host'] ?? ''));
+    $configuredPath = rtrim((string) ($parsedBaseUrl['path'] ?? ''), '/');
+    $requestHostWithoutPort = strtolower((string) preg_replace('/:\d+$/', '', $requestHost));
+
+    // Keep links/API calls on the same host as the current request to avoid CORS/session issues.
+    if ($configuredHost !== '' && $configuredHost !== $requestHostWithoutPort) {
+        $configuredBaseUrl = $requestScheme . '://' . $requestHost . $configuredPath;
+    }
+}
+
+define('BASE_URL', rtrim($configuredBaseUrl, '/'));
+
+define('DB_HOST', (string) env('DB_HOST', 'localhost'));
+define('DB_NAME', (string) env('DB_NAME', 'kaimail'));
+define('DB_USER', (string) env('DB_USER', 'root'));
+define('DB_PASS', (string) env('DB_PASS', ''));
+define('DB_CHARSET', (string) env('DB_CHARSET', 'utf8mb4'));
+define('DB_TIMEZONE', (string) env('DB_TIMEZONE', '+07:00'));
+
+define('WEBHOOK_SECRET', envRequired('WEBHOOK_SECRET'));
+define('API_ACCESS_KEY', envRequired('API_ACCESS_KEY'));
+define('API_SECRET_KEY', envRequired('API_SECRET_KEY'));
+define('API_REQUEST_TTL', max(30, (int) env('API_REQUEST_TTL', 300)));
+define('API_REQUIRE_HTTPS', (bool) env('API_REQUIRE_HTTPS', IS_PRODUCTION));
+define('API_ALLOWED_IPS', trim((string) env('API_ALLOWED_IPS', '')));
+define('WEBHOOK_LOG_FILE', dirname(__DIR__) . '/storage/logs/webhook.log');
+define('ADMIN_ACCESS_KEY', envRequired('ADMIN_ACCESS_KEY'));
+define('ADMIN_DEFAULT_ID', 1);
+define('ADMIN_DEFAULT_USERNAME', 'admin');
+
+define('SESSION_NAME', (string) env('SESSION_NAME', 'kaimail_session'));
+define('SESSION_LIFETIME', (int) env('SESSION_LIFETIME', 86400));
+$sessionCookieSameSite = (string) env('SESSION_COOKIE_SAMESITE', 'Lax');
+if (!in_array($sessionCookieSameSite, ['Lax', 'Strict', 'None'], true)) {
+    $sessionCookieSameSite = 'Lax';
+}
+define('SESSION_COOKIE_SECURE', (bool) env('SESSION_COOKIE_SECURE', IS_PRODUCTION));
+define('SESSION_COOKIE_HTTP_ONLY', (bool) env('SESSION_COOKIE_HTTP_ONLY', true));
+define('SESSION_COOKIE_SAMESITE', $sessionCookieSameSite);
+define('SESSION_COOKIE_PATH', (string) env('SESSION_COOKIE_PATH', '/'));
+$sessionCookieDomain = trim((string) env('SESSION_COOKIE_DOMAIN', ''));
+
+if ($sessionCookieDomain !== '' && $requestHost !== '') {
+    $requestHostWithoutPort = strtolower((string) preg_replace('/:\d+$/', '', $requestHost));
+    $normalizedCookieDomain = strtolower(ltrim($sessionCookieDomain, '.'));
+    $domainMatches = $requestHostWithoutPort === $normalizedCookieDomain
+        || str_ends_with($requestHostWithoutPort, '.' . $normalizedCookieDomain);
+
+    // Fallback to host-only cookie when configured domain doesn't match current host.
+    if (!$domainMatches) {
+        $sessionCookieDomain = '';
+    }
+}
+
+define('SESSION_COOKIE_DOMAIN', $sessionCookieDomain);
+
+define('APP_TIMEZONE', (string) env('APP_TIMEZONE', 'Asia/Ho_Chi_Minh'));
+date_default_timezone_set(APP_TIMEZONE);
+
+define('LONG_POLL_MAX_SECONDS', 25);
+define('LONG_POLL_SLEEP_SECONDS', 1);
+
+define('EXPOSE_ERROR_DETAILS', (bool) env('EXPOSE_ERROR_DETAILS', !IS_PRODUCTION));
+
+$displayErrors = env('DISPLAY_ERRORS', ENVIRONMENT === 'development');
+ini_set('display_errors', $displayErrors ? '1' : '0');
 error_reporting(E_ALL);
-ini_set('display_errors', ENVIRONMENT === 'development' ? '1' : '0');

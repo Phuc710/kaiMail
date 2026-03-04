@@ -1,80 +1,65 @@
 <?php
-/**
- * User Messages API
- * KaiMail - Temp Mail System
- * 
- * GET /api/messages?email=xxx - Lấy messages của email
- * GET /api/messages?id=xxx - Lấy chi tiết message
- */
+// Error handler to return JSON
+function handleJsonError($errno, $errstr, $errfile, $errline)
+{
+    if (!(error_reporting() & $errno))
+        return;
+    http_response_code(500);
+    $response = ['error' => 'Server Error'];
+    if (defined('EXPOSE_ERROR_DETAILS') && EXPOSE_ERROR_DETAILS) {
+        $response['details'] = "$errstr in $errfile:$errline";
+    }
+    echo json_encode($response);
+    exit;
+}
+set_error_handler("handleJsonError");
 
-require_once __DIR__ . '/../config/database.php';
+// Catch Fatal Errors
+register_shutdown_function(function () {
+    $error = error_get_last();
+    if ($error && ($error['type'] === E_ERROR || $error['type'] === E_PARSE || $error['type'] === E_COMPILE_ERROR)) {
+        http_response_code(500);
+        $response = ['error' => 'Fatal Error'];
+        if (defined('EXPOSE_ERROR_DETAILS') && EXPOSE_ERROR_DETAILS) {
+            $response['details'] = $error['message'] . " in " . $error['file'] . ":" . $error['line'];
+        }
+        echo json_encode($response);
+        exit;
+    }
+});
+
+require_once __DIR__ . '/../includes/MessageService.php';
 require_once __DIR__ . '/../config/app.php';
+require_once __DIR__ . '/middleware/ApiSecurity.php';
 
 header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+
+// Set CORS headers
+ApiSecurity::setCorsHeaders();
+ApiSecurity::handlePreflight();
+ApiSecurity::requireApiAuth();
 
 try {
     $db = getDB();
 
     // Get single message by ID
     if (isset($_GET['id'])) {
-        $messageId = (int) $_GET['id'];
-
-        $stmt = $db->prepare("
-            SELECT m.*, e.email 
-            FROM messages m 
-            JOIN emails e ON m.email_id = e.id 
-            WHERE m.id = ? AND e.is_expired = 0
-        ");
-        $stmt->execute([$messageId]);
-        $message = $stmt->fetch();
-
-        if ($message) {
-            // Decode Subject if MIME encoded
-            if (!empty($message['subject']) && strpos($message['subject'], '=?') === 0) {
-                $message['subject'] = iconv_mime_decode($message['subject'], 0, "UTF-8");
-            }
-
-            // Decode Body Content (Quoted-Printable)
-            if ($message['body_html']) {
-                if (preg_match('/=[0-9A-F]{2}/', $message['body_html'])) {
-                    $message['body_html'] = quoted_printable_decode($message['body_html']);
-                }
-            }
-
-            if ($message['body_text']) {
-                if (preg_match('/=[0-9A-F]{2}/', $message['body_text'])) {
-                    $message['body_text'] = quoted_printable_decode($message['body_text']);
-                }
-            }
-        }
-
+        $message = MessageService::getMessage((int) $_GET['id']);
         if (!$message) {
             jsonResponse(['error' => 'Message not found'], 404);
         }
-
-        // Mark as read
-        $db->prepare("UPDATE messages SET is_read = 1 WHERE id = ?")->execute([$messageId]);
-
-        jsonResponse([
-            'id' => $message['id'],
-            'from_email' => $message['from_email'],
-            'from_name' => $message['from_name'],
-            'subject' => $message['subject'],
-            'body_text' => $message['body_text'],
-            'body_html' => $message['body_html'],
-            'is_read' => true,
-            'received_at' => $message['received_at']
-        ]);
+        jsonResponse($message);
     }
 
-    // Get messages by email
+    // Get messages by email (User specific logic: find email_id first)
     $email = strtolower(trim($_GET['email'] ?? ''));
 
     if (empty($email)) {
         jsonResponse(['error' => 'Email is required'], 400);
     }
 
-    // Get email record
     $stmt = $db->prepare("SELECT id, is_expired FROM emails WHERE email = ?");
     $stmt->execute([$email]);
     $emailData = $stmt->fetch();
@@ -87,29 +72,8 @@ try {
         jsonResponse(['error' => 'Email has expired'], 410);
     }
 
-    // Get messages
-    $stmt = $db->prepare("
-        SELECT id, from_email, from_name, subject, is_read, received_at,
-               LEFT(body_text, 100) as preview
-        FROM messages 
-        WHERE email_id = ?
-        ORDER BY received_at DESC
-        LIMIT 100
-    ");
-    $stmt->execute([$emailData['id']]);
-    $messages = $stmt->fetchAll();
-
-    // Process preview text and subject
-    foreach ($messages as &$msg) {
-        if (!empty($msg['subject']) && strpos($msg['subject'], '=?') === 0) {
-            $msg['subject'] = iconv_mime_decode($msg['subject'], 0, "UTF-8");
-        }
-        // Basic quoted-printable decode for preview if needed
-        if (!empty($msg['preview']) && strpos($msg['preview'], '=') !== false) {
-            $msg['preview'] = quoted_printable_decode($msg['preview']);
-        }
-    }
-    unset($msg);
+    // Use Service to get messages
+    $messages = MessageService::getMessagesByEmailId($emailData['id']);
 
     // Count unread
     $stmt = $db->prepare("SELECT COUNT(*) FROM messages WHERE email_id = ? AND is_read = 0");
@@ -120,10 +84,15 @@ try {
         'email' => $email,
         'total' => count($messages),
         'unread' => (int) $unreadCount,
-        'messages' => $messages
+        'messages' => $messages,
+        'server_time' => date('Y-m-d H:i:s')
     ]);
 
 } catch (Exception $e) {
     error_log("Messages API error: " . $e->getMessage());
-    jsonResponse(['error' => 'Internal server error'], 500);
+    $response = ['error' => 'Internal server error'];
+    if (EXPOSE_ERROR_DETAILS) {
+        $response['message'] = $e->getMessage();
+    }
+    jsonResponse($response, 500);
 }

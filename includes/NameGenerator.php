@@ -156,103 +156,30 @@ class NameGenerator
         'murphy'
     ];
 
-    private static array $vietnameseFirstNames = [
-        'an',
-        'anh',
-        'bao',
-        'binh',
-        'cuong',
-        'dung',
-        'duc',
-        'hai',
-        'hieu',
-        'hoa',
-        'hoang',
-        'hung',
-        'huong',
-        'huy',
-        'khanh',
-        'khoa',
-        'lan',
-        'linh',
-        'long',
-        'mai',
-        'minh',
-        'nam',
-        'nga',
-        'nhan',
-        'nhung',
-        'phuong',
-        'quan',
-        'quang',
-        'quynh',
-        'son',
-        'tam',
-        'thanh',
-        'thao',
-        'thi',
-        'thuy',
-        'tien',
-        'trinh',
-        'trung',
-        'tu',
-        'tuan',
-        'tuyet',
-        'van',
-        'viet',
-        'vu',
-        'xuan',
-        'yen'
-    ];
-
     private static array $vietnameseLastNames = [
-        'nguyen',
-        'tran',
-        'le',
-        'pham',
-        'hoang',
-        'phan',
-        'vu',
-        'vo',
-        'dang',
-        'bui',
-        'do',
-        'ho',
-        'ngo',
-        'duong',
-        'ly',
-        'dinh',
-        'mai',
-        'truong',
-        'cao',
-        'trinh',
-        'ta',
-        'lam',
-        'huynh',
-        'luong',
-        'ha',
-        'tong',
-        'quach',
-        'chu',
-        'bach',
-        'hien',
-        'huy',
-        'tam',
-        'tri',
-        'tai',
-        'tien',
-        'tinh',
-        'tuan',
-        'tuyen',
-        'tung',
-        'tiang',
-        'tinh',
-        'tuan',
-        'tuyen',
-        'tung',
-        'tuong',
-        'thai'
-    ];
+    'nguyen', 'tran', 'le', 'pham', 'hoang', 'phan', 'vu', 'vo', 'dang', 'bui',
+    'do', 'ho', 'ngo', 'duong', 'ly', 'dinh', 'mai', 'truong', 'cao', 'trinh',
+    'ta', 'lam', 'huynh', 'luong', 'ha', 'tong', 'quach', 'chu', 'bach', 'hien',
+    'huy', 'tam', 'tri', 'tai', 'tien', 'tinh', 'tuan', 'tuyen', 'tung', 'tiang',
+    'tuong', 'thai', 'vong', 'la', 'lieu', 'vinh', 'nguong', 'phung', 'nhat', 'dao',
+    'uong', 'phi', 'ong', 'nong', 'khuat', 'nghiem', 'ton', 'pham', 'chau', 'dieu',
+    'mac', 'hua', 'vuong', 'kiem', 'binh', 'trang', 'huu', 'tien', 'thach', 'lu',
+    'nguu', 'khong', 'kiem', 'the', 'nguy', 'vien', 'on', 'thoi', 'nham', 'lam',
+    'trieu', 'buu', 'man', 'giang', 'kha', 'vong', 'sam', 'bien', 'tranh', 'vinh',
+    'kiem', 'uong', 'dinh', 'than', 'vong', 'khuu', 'to', 'phi', 'ton', 'kim'
+];
+private static array $vietnameseFirstNames = [
+    'an', 'anh', 'bao', 'binh', 'cuong', 'dung', 'duc', 'hai', 'hieu', 'hoa',
+    'hoang', 'hung', 'huong', 'huy', 'khanh', 'khoa', 'lan', 'linh', 'long', 'mai',
+    'minh', 'nam', 'nga', 'nhan', 'nhung', 'phuong', 'quan', 'quang', 'quynh', 'son',
+    'tam', 'thanh', 'thao', 'thi', 'thuy', 'tien', 'trinh', 'trung', 'tu', 'tuan',
+    'tuyet', 'van', 'viet', 'vu', 'xuan', 'yen', 'bach', 'duy', 'kien', 'khai',
+    'nhat', 'ngoc', 'phuc', 'loc', 'phat', 'thang', 'thinh', 'khang', 'tuong', 'chien',
+    'dat', 'nghia', 'triet', 'uong', 'vy', 'diep', 'nguyet', 'que', 'tram', 'uyen',
+    'diu', 'nga', 'trang', 'hanh', 'thuc', 'quyen', 'my', 'kieu', 'oanh', 'van',
+    'toan', 'thuan', 'thanh', 'dai', 'lam', 'vinh', 'cuong', 'duong', 'phong', 'sang',
+    'manh', 'loi', 'nghiep', 'bang', 'toan', 'nguyen', 'khoi', 'quan', 'huan', 'lam'
+];
 
     /**
      * Generate random meaningful username
@@ -260,10 +187,9 @@ class NameGenerator
      */
     public static function generateUsername(string $type = 'random'): string
     {
-        // Normalize type
-        if ($type === 'vn' || $type === 'vietnam') {
+        if ($type === 'vn') {
             $useEnglish = false;
-        } elseif ($type === 'en' || $type === 'english') {
+        } elseif ($type === 'en') {
             $useEnglish = true;
         } else {
             $useEnglish = random_int(0, 1) === 1;
@@ -286,9 +212,9 @@ class NameGenerator
      */
     public static function getNameType(string $type = 'random'): string
     {
-        if ($type === 'vn' || $type === 'vietnam')
+        if ($type === 'vn')
             return 'vn';
-        if ($type === 'en' || $type === 'english')
+        if ($type === 'en')
             return 'en';
         return random_int(0, 1) === 1 ? 'en' : 'vn';
     }

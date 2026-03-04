@@ -17,23 +17,11 @@ class EmailService extends BaseService
     }
 
     /**
-     * Calculate expiry date based on type
-     * 
-     * @param string $type Expiry type: '30days', '1year', '2years', 'forever'
-     * @return string|null Expiry datetime or null for forever
+     * All generated emails are permanent (no expiration).
      */
     public function calculateExpiry(string $type): ?string
     {
-        if ($type === 'forever') {
-            return null;
-        }
-
-        return match ($type) {
-            '30days' => date('Y-m-d H:i:s', strtotime('+30 days')),
-            '1year' => date('Y-m-d H:i:s', strtotime('+1 year')),
-            '2years' => date('Y-m-d H:i:s', strtotime('+2 years')),
-            default => null
-        };
+        return null;
     }
 
     /**
