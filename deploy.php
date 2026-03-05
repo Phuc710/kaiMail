@@ -43,14 +43,59 @@ function buildCommand(string $binary, array $args): string
     return implode(' ', $parts);
 }
 
-$rootDir = __DIR__;
-$envLoader = $rootDir . '/config/env.php';
-if (is_file($envLoader)) {
-    require_once $envLoader;
-    if (function_exists('loadEnvFile')) {
-        loadEnvFile($rootDir . '/.env');
+function loadLocalEnvFile(string $filePath): void
+{
+    if (!is_file($filePath) || !is_readable($filePath)) {
+        return;
+    }
+
+    $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if ($lines === false) {
+        return;
+    }
+
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || strpos($line, '#') === 0) {
+            continue;
+        }
+
+        if (strpos($line, 'export ') === 0) {
+            $line = trim(substr($line, 7));
+        }
+
+        $separatorPos = strpos($line, '=');
+        if ($separatorPos === false) {
+            continue;
+        }
+
+        $name = trim(substr($line, 0, $separatorPos));
+        $value = trim(substr($line, $separatorPos + 1));
+        if ($name === '') {
+            continue;
+        }
+
+        $firstChar = substr($value, 0, 1);
+        $lastChar = substr($value, -1);
+        if (
+            strlen($value) >= 2 &&
+            (($firstChar === '"' && $lastChar === '"') || ($firstChar === "'" && $lastChar === "'"))
+        ) {
+            $value = substr($value, 1, -1);
+        }
+
+        if (getenv($name) !== false) {
+            continue;
+        }
+
+        $_ENV[$name] = $value;
+        $_SERVER[$name] = $value;
+        putenv($name . '=' . $value);
     }
 }
+
+$rootDir = __DIR__;
+loadLocalEnvFile($rootDir . '/.env');
 
 $logFile = $rootDir . '/storage/logs/deploy.log';
 $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
@@ -75,7 +120,7 @@ if ($deploySecret === '') {
 }
 
 $signature = trim((string) ($_SERVER['HTTP_X_HUB_SIGNATURE_256'] ?? ''));
-if ($signature === '' || !str_starts_with($signature, 'sha256=')) {
+if ($signature === '' || strpos($signature, 'sha256=') !== 0) {
     deployLog($logFile, 'Missing or invalid signature header');
     deployResponse(401, ['ok' => false, 'message' => 'Invalid signature']);
 }
