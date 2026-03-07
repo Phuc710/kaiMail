@@ -1,4 +1,4 @@
-# KaiMail - Temporary Email System
+# KaiMail
 
 ## 📋 Tổng Quan
 
