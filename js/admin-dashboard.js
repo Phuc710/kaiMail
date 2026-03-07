@@ -88,16 +88,18 @@ class AdminDashboardPage {
 
     async loadStats(silent = false) {
         try {
-            const { ok, data } = await this.core.fetchJson("/api/admin/stats.php");
+            const { ok, data, status } = await this.core.fetchJson("/api/admin/stats.php");
             if (!ok || !data) {
-                if (!silent) this.core.showToast("Không thể tải thống kê", "error");
+                if (!silent) {
+                    const message = data?.error || data?.message || `Không thể tải thống kê (HTTP ${status || 0})`;
+                    this.core.showToast(message, "error");
+                }
                 return;
             }
 
-            document.getElementById("statTotalEmails").textContent = Number(data.total_emails || 0);
-            document.getElementById("statActiveEmails").textContent = Number(data.active_emails || 0);
-            document.getElementById("statTotalMessages").textContent = Number(data.total_messages || 0);
-            document.getElementById("statExpiredEmails").textContent = Number(data.expired_emails || 0);
+            this.setStatValue("statTotalEmails", data.total_emails);
+            this.setStatValue("statActiveEmails", data.active_emails);
+            this.setStatValue("statTotalMessages", data.total_messages);
 
             if (data.server_time) {
                 this.lastCheckTime = String(data.server_time);
@@ -105,6 +107,12 @@ class AdminDashboardPage {
         } catch (error) {
             if (!silent) this.core.showToast("Không thể tải thống kê", "error");
         }
+    }
+
+    setStatValue(elementId, value) {
+        const element = document.getElementById(elementId);
+        if (!element) return;
+        element.textContent = Number(value || 0);
     }
 
     async loadEmails(silent = false) {
@@ -147,7 +155,7 @@ class AdminDashboardPage {
         if (!emails.length) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="7" class="empty-row">Không có email nào</td>
+                    <td colspan="5" class="empty-row">Không có email nào</td>
                 </tr>
             `;
             this.selectedIds.clear();
@@ -186,8 +194,6 @@ class AdminDashboardPage {
                             ${unreadCount > 0 ? `<span class="unread-badge">${unreadCount}</span>` : ""}
                         </button>
                     </td>
-                    <td><span class="badge badge-forever">Vĩnh viễn</span></td>
-                    <td>-</td>
                     <td>${this.core.escapeHtml(createdAt)}</td>
                     <td class="col-actions">
                         <button class="btn-icon" data-action="view-messages" data-email-id="${id}" data-email="${emailEncoded}" title="Xem tin nhắn">
@@ -309,7 +315,13 @@ class AdminDashboardPage {
 
     async deleteEmail(emailId) {
         if (!emailId) return;
-        const confirmed = window.confirm("Bạn có chắc muốn xóa email này?");
+        const confirmed = await this.core.confirmAction({
+            title: "Xác nhận xóa email",
+            text: "Bạn có chắc muốn xóa email này?",
+            confirmButtonText: "Xóa email",
+            cancelButtonText: "Hủy",
+            icon: "warning",
+        });
         if (!confirmed) return;
 
         try {
@@ -333,7 +345,13 @@ class AdminDashboardPage {
 
     async deleteSelected() {
         if (this.selectedIds.size < 1) return;
-        const confirmed = window.confirm(`Bạn có chắc muốn xóa ${this.selectedIds.size} email?`);
+        const confirmed = await this.core.confirmAction({
+            title: "Xác nhận xóa email",
+            text: `Bạn có chắc muốn xóa ${this.selectedIds.size} email?`,
+            confirmButtonText: "Xóa đã chọn",
+            cancelButtonText: "Hủy",
+            icon: "warning",
+        });
         if (!confirmed) return;
 
         try {
@@ -452,7 +470,13 @@ class AdminDashboardPage {
 
     async deleteMessage(messageId, emailId) {
         if (!messageId || !emailId) return;
-        const confirmed = window.confirm("Bạn có chắc muốn xóa tin nhắn này?");
+        const confirmed = await this.core.confirmAction({
+            title: "Xác nhận xóa tin nhắn",
+            text: "Bạn có chắc muốn xóa tin nhắn này?",
+            confirmButtonText: "Xóa tin nhắn",
+            cancelButtonText: "Hủy",
+            icon: "warning",
+        });
         if (!confirmed) return;
 
         try {
@@ -561,3 +585,5 @@ document.addEventListener("DOMContentLoaded", () => {
         window.addEventListener("admin-core-ready", boot, { once: true });
     }
 });
+
+

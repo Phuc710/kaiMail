@@ -1,5 +1,40 @@
 ﻿<?php
 require_once __DIR__ . '/config/app.php';
+
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    if (defined('SESSION_NAME') && SESSION_NAME !== '') {
+        session_name((string) SESSION_NAME);
+    }
+
+    $https = strtolower((string) ($_SERVER['HTTPS'] ?? ''));
+    $isHttps = ($https !== '' && $https !== 'off') || ((string) ($_SERVER['SERVER_PORT'] ?? '')) === '443';
+
+    session_set_cookie_params([
+        'lifetime' => defined('SESSION_LIFETIME') ? (int) SESSION_LIFETIME : 86400,
+        'path' => defined('SESSION_COOKIE_PATH') ? (string) SESSION_COOKIE_PATH : '/',
+        'domain' => defined('SESSION_COOKIE_DOMAIN') ? (string) SESSION_COOKIE_DOMAIN : '',
+        'secure' => (defined('SESSION_COOKIE_SECURE') ? (bool) SESSION_COOKIE_SECURE : false) && $isHttps,
+        'httponly' => defined('SESSION_COOKIE_HTTP_ONLY') ? (bool) SESSION_COOKIE_HTTP_ONLY : true,
+        'samesite' => defined('SESSION_COOKIE_SAMESITE') ? (string) SESSION_COOKIE_SAMESITE : 'Lax',
+    ]);
+
+    session_start();
+}
+
+if (empty($_SESSION['kaimail_web_ui_token']) || !is_string($_SESSION['kaimail_web_ui_token'])) {
+    try {
+        $_SESSION['kaimail_web_ui_token'] = bin2hex(random_bytes(32));
+    } catch (Throwable $e) {
+        $_SESSION['kaimail_web_ui_token'] = hash('sha256', uniqid('km_web_', true));
+    }
+}
+
+$webUiToken = (string) $_SESSION['kaimail_web_ui_token'];
+
+// Release session lock early to keep API requests responsive.
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
 $homeCssVer = @filemtime(__DIR__ . '/css/home.css') ?: time();
 $longPollingVer = @filemtime(__DIR__ . '/js/longPolling.js') ?: time();
 $appJsVer = @filemtime(__DIR__ . '/js/app.js') ?: time();
@@ -140,7 +175,7 @@ $structuredData = [
                         </button>
                     </div>
                     <button id="getMailBtn" class="btn-get">
-                        <span>Mở inbox</span>
+                        <span>Get Mail</span>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="5" y1="12" x2="19" y2="12" />
                             <polyline points="12 5 19 12 12 19" />
@@ -171,16 +206,20 @@ $structuredData = [
                 <div id="messagesList" class="messages-list"></div>
 
                 <div id="emptyState" class="empty-state">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                        <polyline points="22,6 12,13 2,6" />
+                    <svg width="92" height="94" viewBox="0 0 92 87" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M26 54.37V38.9C26.003 37.125 26.9469 35.4846 28.48 34.59L43.48 25.84C45.027 24.9468 46.933 24.9468 48.48 25.84L63.48 34.59C65.0285 35.4745 65.9887 37.1167 66 38.9V54.37C66 57.1314 63.7614 59.37 61 59.37H31C28.2386 59.37 26 57.1314 26 54.37Z" fill="#8C92A5"></path>
+                        <path d="M46 47.7L26.68 36.39C26.2325 37.1579 25.9978 38.0312 26 38.92V54.37C26 57.1314 28.2386 59.37 31 59.37H61C63.7614 59.37 66 57.1314 66 54.37V38.9C66.0022 38.0112 65.7675 37.1379 65.32 36.37L46 47.7Z" fill="#CDCDD8"></path>
+                        <path d="M27.8999 58.27C28.7796 58.9758 29.8721 59.3634 30.9999 59.37H60.9999C63.7613 59.37 65.9999 57.1314 65.9999 54.37V38.9C65.9992 38.0287 65.768 37.1731 65.3299 36.42L27.8999 58.27Z" fill="#E5E5F0"></path>
+                        <path class="emptyInboxRotation" d="M77.8202 29.21L89.5402 25.21C89.9645 25.0678 90.4327 25.1942 90.7277 25.5307C91.0227 25.8673 91.0868 26.348 90.8902 26.75L87.0002 34.62C86.8709 34.8874 86.6407 35.0924 86.3602 35.19C86.0798 35.2806 85.7751 35.2591 85.5102 35.13L77.6502 31.26C77.2436 31.0643 76.9978 30.6401 77.0302 30.19C77.0677 29.7323 77.3808 29.3438 77.8202 29.21Z" fill="#E5E5F0"></path>
+                        <path class="emptyInboxRotation" d="M5.12012 40.75C6.36707 20.9791 21.5719 4.92744 41.2463 2.61179C60.9207 0.296147 79.4368 12.3789 85.2401 31.32" stroke="#E5E5F0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+                        <path class="emptyInboxRotation" d="M14.18 57.79L2.46001 61.79C2.03313 61.9358 1.56046 61.8088 1.2642 61.4686C0.967927 61.1284 0.906981 60.6428 1.11001 60.24L5.00001 52.38C5.12933 52.1127 5.35954 51.9076 5.64001 51.81C5.92044 51.7194 6.22508 51.7409 6.49001 51.87L14.35 55.74C14.7224 55.9522 14.9394 56.36 14.9073 56.7874C14.8753 57.2149 14.5999 57.5857 14.2 57.74L14.18 57.79Z" fill="#E5E5F0"></path>
+                        <path class="emptyInboxRotation" d="M86.9998 45.8C85.9593 65.5282 70.9982 81.709 51.4118 84.2894C31.8254 86.8697 13.1841 75.1156 7.06982 56.33" stroke="#E5E5F0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
                     </svg>
                     <p>Chưa có thư</p>
                 </div>
 
                 <div id="loadingState" class="loading-state hidden">
                     <div class="spinner"></div>
-                    <span>Đang tải...</span>
                 </div>
             </section>
         </main>
@@ -207,7 +246,8 @@ $structuredData = [
 
     <script>
         window.KAIMAIL_CONFIG = {
-            baseUrl: "<?= BASE_URL ?>"
+            baseUrl: "<?= BASE_URL ?>",
+            userToken: "<?= htmlspecialchars($webUiToken, ENT_QUOTES, 'UTF-8') ?>"
         };
     </script>
     <script src="<?= BASE_URL ?>/js/longPolling.js?v=<?= $longPollingVer ?>"></script>

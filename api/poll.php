@@ -8,6 +8,7 @@
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/app.php';
+require_once __DIR__ . '/../includes/DatabaseOptimizer.php';
 require_once __DIR__ . '/middleware/ApiSecurity.php';
 
 // Disable caching strongly
@@ -28,38 +29,31 @@ try {
     $sleepSeconds = LONG_POLL_SLEEP_SECONDS;
     $startTime = time();
     $db = getDB();
+    DatabaseOptimizer::ensureCoreIndexes($db);
 
     if (!$emailId) {
         jsonResponse(['error' => 'email_id required'], 400);
     }
 
-    // Prepare statement once
-    // Count unread instead of fetching all for check
-    $checkSql = "SELECT COUNT(*) FROM messages WHERE email_id = ? AND received_at > ?";
-    $stmt = $db->prepare($checkSql);
+    // Query once per loop: directly fetch newest messages after last_check.
+    $fetchSql = "
+        SELECT id, from_email, from_name, subject, is_read, received_at,
+               LEFT(body_text, 100) as preview
+        FROM messages
+        WHERE email_id = ? AND received_at > ?
+        ORDER BY received_at DESC
+        LIMIT 20
+    ";
+    $stmt = $db->prepare($fetchSql);
 
     while (time() - $startTime < $maxTime) {
-        // Clear statement cursor (if any)
         $stmt->closeCursor();
 
-        // Execute check
         $stmt->execute([$emailId, $lastCheck]);
-        $count = $stmt->fetchColumn();
+        $messages = $stmt->fetchAll();
+        $count = is_array($messages) ? count($messages) : 0;
 
         if ($count > 0) {
-            // Found new messages! Fetch them
-            $getSql = "
-                SELECT id, from_email, from_name, subject, is_read, received_at,
-                       LEFT(body_text, 100) as preview
-                FROM messages 
-                WHERE email_id = ? AND received_at > ?
-                ORDER BY received_at DESC
-            ";
-            $getStmt = $db->prepare($getSql);
-            $getStmt->execute([$emailId, $lastCheck]);
-            $messages = $getStmt->fetchAll();
-
-            // Return immediately
             jsonResponse([
                 'has_new' => true,
                 'count' => $count,

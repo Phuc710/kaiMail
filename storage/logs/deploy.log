@@ -1,0 +1,3 @@
+[2026-03-05 15:03:47] [REJECT] method_not_allowed {"request_id":"22ce067700e2183e","ip":"::1","method":"GET","event":""}
+[2026-03-05 15:04:02] [REJECT] method_not_allowed {"request_id":"9f8561beaafd54c7","ip":"::1","method":"GET","event":""}
+[2026-03-05 15:04:30] [REJECT] missing_or_invalid_signature_header {"request_id":"27f68d8fac361715","ip":"::1","method":"POST","event":""}

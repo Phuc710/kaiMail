@@ -1,225 +1,148 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../includes/AdminLayout.php';
 
 $adminName = 'admin';
-$baseApi = rtrim((string) BASE_URL, '/') . '/api';
+$baseUrl = rtrim((string) BASE_URL, '/');
 $basePath = rtrim((string) parse_url((string) BASE_URL, PHP_URL_PATH), '/');
-$statsPath = ($basePath === '' ? '' : $basePath) . '/api/admin/stats.php';
+$apiBase = $baseUrl . '/api';
+$emailsPath = ($basePath === '' ? '' : $basePath) . '/api/emails.php';
+$messagesPath = ($basePath === '' ? '' : $basePath) . '/api/messages.php';
+$pollPath = ($basePath === '' ? '' : $basePath) . '/api/poll.php';
 
-AdminLayout::begin('Tài liệu API', 'docs-api', $adminName);
+AdminLayout::begin('Tài liệu API bên ngoài', 'docs-api', $adminName);
 ?>
 <div class="docs-container">
     <header class="docs-header">
-        <h1>Tài liệu API KaiMail</h1>
-        <p>UI admin đăng nhập bằng access key, không dùng cookie. Tích hợp bên ngoài dùng API key/secret + chữ ký.</p>
+        <h1>Hướng dẫn API bên ngoài (create/read/delete)</h1>
+        <p>Trang này chỉ tập trung luồng bạn dùng: tạo mailbox, đọc mail, đọc chi tiết và xóa dữ liệu.</p>
     </header>
 
     <div class="docs-content">
         <section class="docs-grid">
             <article class="info-card">
-                <h3>Địa chỉ API gốc</h3>
-                <p><code><?= htmlspecialchars($baseApi, ENT_QUOTES, 'UTF-8') ?></code></p>
+                <h3>Base URL</h3>
+                <p><code><?= htmlspecialchars($apiBase, ENT_QUOTES, 'UTF-8') ?></code></p>
             </article>
             <article class="info-card">
-                <h3>Kiểu bảo mật</h3>
-                <p>Header <code>X-API-KEY</code> + <code>X-API-SECRET</code> + chữ ký HMAC.</p>
+                <h3>Xác thực</h3>
+                <p>Bắt buộc 4 header: <code>X-API-KEY</code>, <code>X-API-SECRET</code>, <code>X-API-TIMESTAMP</code>, <code>X-API-SIGNATURE</code>.</p>
             </article>
             <article class="info-card">
-                <h3>Múi giờ hệ thống</h3>
-                <p>Toàn bộ thời gian dùng chuẩn Việt Nam <code>+07:00</code> (<code>Asia/Ho_Chi_Minh</code>).</p>
+                <h3>Lưu ý local</h3>
+                <p>Nếu test trên <code>http://localhost</code> mà bị <code>403</code>, set <code>API_REQUIRE_HTTPS=false</code> trong <code>.env</code>.</p>
             </article>
         </section>
 
         <section style="margin-bottom: 20px;">
-            <h2>Phân biệt 2 luồng bảo mật</h2>
-            <table class="param-table">
-                <thead>
-                    <tr>
-                        <th>Luồng</th>
-                        <th>Xác thực</th>
-                        <th>Mục đích</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>UI Admin Web</td>
-                        <td><code>ADMIN_ACCESS_KEY</code> (header <code>X-ADMIN-ACCESS-KEY</code>)</td>
-                        <td>Đăng nhập trong trình duyệt tại <code>/adminkaishop/login</code>, không dùng cookie</td>
-                    </tr>
-                    <tr>
-                        <td>API bên ngoài</td>
-                        <td><code>X-API-KEY</code>, <code>X-API-SECRET</code>, <code>X-API-TIMESTAMP</code>, <code>X-API-SIGNATURE</code></td>
-                        <td>Gọi API từ app/service bên ngoài</td>
-                    </tr>
-                </tbody>
-            </table>
+            <h2>1) Tạo chữ ký HMAC</h2>
+            <p>Chữ ký tính theo công thức: <code>METHOD + "\n" + PATH + "\n" + TIMESTAMP</code>, key là <code>API_SECRET_KEY</code>.</p>
+            <div class="code-box">#!/usr/bin/env bash
+API_KEY="YOUR_API_ACCESS_KEY"
+API_SECRET="YOUR_API_SECRET_KEY"
+TS=$(date +%s)
+METHOD="POST"
+PATH="<?= htmlspecialchars($emailsPath, ENT_QUOTES, 'UTF-8') ?>"
+SIG=$(printf "%s\n%s\n%s" "$METHOD" "$PATH" "$TS" | openssl dgst -sha256 -hmac "$API_SECRET" -r | awk '{print $1}')</div>
         </section>
 
-        <section>
-            <h2>Bắt buộc xác thực cho toàn bộ API</h2>
-            <table class="param-table">
-                <thead>
-                    <tr>
-                        <th>Header</th>
-                        <th>Bắt buộc</th>
-                        <th>Mô tả</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><code>X-API-KEY</code></td>
-                        <td>Có</td>
-                        <td>Khóa truy cập API từ <code>.env</code> (`API_ACCESS_KEY`)</td>
-                    </tr>
-                    <tr>
-                        <td><code>X-API-SECRET</code></td>
-                        <td>Có</td>
-                        <td>Secret API từ <code>.env</code> (`API_SECRET_KEY`)</td>
-                    </tr>
-                    <tr>
-                        <td><code>X-API-TIMESTAMP</code></td>
-                        <td>Có</td>
-                        <td>Unix timestamp (giây), bị từ chối nếu quá thời gian <code>API_REQUEST_TTL</code></td>
-                    </tr>
-                    <tr>
-                        <td><code>X-API-SIGNATURE</code></td>
-                        <td>Có</td>
-                        <td>
-                            HMAC SHA256 của chuỗi:<br>
-                            <code>METHOD + "\n" + PATH + "\n" + TIMESTAMP</code>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <div class="hint-box">
-                Gợi ý bảo mật cao: chỉ cho phép IP riêng bằng `API_ALLOWED_IPS` trong `.env`.
-            </div>
-        </section>
-
-        <section style="margin-top: 20px;">
-            <h2>Cách ký chữ ký (HMAC)</h2>
-            <div class="code-box"># Ví dụ với endpoint:
-# GET /kaiMail/api/admin/stats.php
-
-METHOD="GET"
-PATH="<?= htmlspecialchars($statsPath, ENT_QUOTES, 'UTF-8') ?>"
-TIMESTAMP=$(date +%s)
-SIGNATURE=$(printf "%s\n%s\n%s" "$METHOD" "$PATH" "$TIMESTAMP" | \
-  openssl dgst -sha256 -hmac "$API_SECRET_KEY" -r | awk '{print $1}')</div>
-        </section>
-
-        <section style="margin-top: 20px;">
-            <h2>Điểm cuối chính</h2>
-
-            <article class="endpoint-card">
-                <div class="endpoint-header">
-                    <span class="method-badge get">GET</span>
-                    <span class="endpoint-url">/api/admin/auth.php</span>
-                </div>
-                <p class="endpoint-description">Kiểm tra API key/secret còn hợp lệ hay không.</p>
-            </article>
-
-            <article class="endpoint-card">
-                <div class="endpoint-header">
-                    <span class="method-badge get">GET</span>
-                    <span class="endpoint-url">/api/admin/stats.php</span>
-                </div>
-                <p class="endpoint-description">Lấy thống kê hệ thống.</p>
-            </article>
-
-            <article class="endpoint-card">
-                <div class="endpoint-header">
-                    <span class="method-badge get">GET</span>
-                    <span class="endpoint-url">/api/admin/emails.php?filter=active&page=1</span>
-                </div>
-                <p class="endpoint-description">Lấy danh sách email.</p>
-            </article>
-
+        <section style="margin-bottom: 20px;">
+            <h2>2) Tạo mailbox</h2>
             <article class="endpoint-card">
                 <div class="endpoint-header">
                     <span class="method-badge post">POST</span>
-                    <span class="endpoint-url">/api/admin/emails.php</span>
+                    <span class="endpoint-url">/api/emails.php</span>
                 </div>
-                <p class="endpoint-description">Tạo email mới.</p>
+                <p class="endpoint-description">Tạo mailbox mới. Mặc định là email vĩnh viễn.</p>
                 <div class="code-box">{
-  "name_type": "vn",
-  "domain": "example.com"
+  "domain": "trongnghia.store",
+  "name_type": "en",
+  "quantity": 1
+}</div>
+                <div class="code-box">curl -X POST "<?= htmlspecialchars($baseUrl . '/api/emails.php', ENT_QUOTES, 'UTF-8') ?>" \
+  -H "Content-Type: application/json" \
+  -H "X-API-KEY: $API_KEY" \
+  -H "X-API-SECRET: $API_SECRET" \
+  -H "X-API-TIMESTAMP: $TS" \
+  -H "X-API-SIGNATURE: $SIG" \
+  -d '{"domain":"trongnghia.store","name_type":"en","quantity":1}'</div>
+            </article>
+        </section>
+
+        <section style="margin-bottom: 20px;">
+            <h2>3) Đọc danh sách mail</h2>
+            <article class="endpoint-card">
+                <div class="endpoint-header">
+                    <span class="method-badge get">GET</span>
+                    <span class="endpoint-url">/api/messages.php?email=mailbox@domain.com</span>
+                </div>
+                <p class="endpoint-description">Lấy danh sách mail theo mailbox.</p>
+            </article>
+
+            <article class="endpoint-card">
+                <div class="endpoint-header">
+                    <span class="method-badge get">GET</span>
+                    <span class="endpoint-url">/api/messages.php?id=123</span>
+                </div>
+                <p class="endpoint-description">Lấy chi tiết 1 mail theo ID.</p>
+            </article>
+        </section>
+
+        <section style="margin-bottom: 20px;">
+            <h2>4) Xóa dữ liệu</h2>
+            <article class="endpoint-card">
+                <div class="endpoint-header">
+                    <span class="method-badge delete">DELETE</span>
+                    <span class="endpoint-url">/api/messages.php</span>
+                </div>
+                <p class="endpoint-description">Xóa mail theo mailbox.</p>
+                <div class="code-box">{
+  "email": "mailbox@trongnghia.store",
+  "ids": [101, 102]
+}</div>
+                <div class="code-box">{
+  "email": "mailbox@trongnghia.store",
+  "delete_all": true
 }</div>
             </article>
 
             <article class="endpoint-card">
                 <div class="endpoint-header">
                     <span class="method-badge delete">DELETE</span>
-                    <span class="endpoint-url">/api/admin/emails.php</span>
+                    <span class="endpoint-url">/api/emails.php</span>
                 </div>
-                <p class="endpoint-description">Xóa email theo danh sách ID.</p>
+                <p class="endpoint-description">Xóa mailbox (messages sẽ bị xóa theo).</p>
                 <div class="code-box">{
-  "ids": [1, 2, 3]
+  "email": "mailbox@trongnghia.store"
 }</div>
             </article>
+        </section>
 
+        <section style="margin-bottom: 20px;">
+            <h2>5) Poll realtime (tùy chọn)</h2>
             <article class="endpoint-card">
                 <div class="endpoint-header">
                     <span class="method-badge get">GET</span>
-                    <span class="endpoint-url">/api/messages.php?email=user@example.com</span>
+                    <span class="endpoint-url">/api/poll.php?email_id=123&last_check=2026-03-05 19:00:00</span>
                 </div>
-                <p class="endpoint-description">Lấy tin nhắn theo email (đã bảo vệ bằng API key/secret).</p>
+                <p class="endpoint-description">Long-poll để lấy mail mới gần realtime.</p>
             </article>
         </section>
 
-        <section style="margin-top: 20px;">
-            <h2>Ví dụ cURL đầy đủ</h2>
-            <div class="code-box">#!/usr/bin/env bash
-BASE="<?= htmlspecialchars(rtrim((string) BASE_URL, '/'), ENT_QUOTES, 'UTF-8') ?>"
-API_KEY="YOUR_API_ACCESS_KEY"
-API_SECRET="YOUR_API_SECRET_KEY"
-METHOD="GET"
-PATH="<?= htmlspecialchars($statsPath, ENT_QUOTES, 'UTF-8') ?>"
-TS=$(date +%s)
-SIG=$(printf "%s\n%s\n%s" "$METHOD" "$PATH" "$TS" | openssl dgst -sha256 -hmac "$API_SECRET" -r | awk '{print $1}')
-
-curl -X "$METHOD" "$BASE$PATH" \
-  -H "X-API-KEY: $API_KEY" \
-  -H "X-API-SECRET: $API_SECRET" \
-  -H "X-API-TIMESTAMP: $TS" \
-  -H "X-API-SIGNATURE: $SIG"</div>
-        </section>
-
-        <section style="margin-top: 20px;">
-            <h2>Mã lỗi thường gặp</h2>
-            <table class="param-table">
-                <thead>
-                    <tr>
-                        <th>Mã</th>
-                        <th>Ý nghĩa</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><code>200</code></td>
-                        <td>Thành công</td>
-                    </tr>
-                    <tr>
-                        <td><code>401</code></td>
-                        <td>Thiếu/sai key, secret, timestamp hoặc signature</td>
-                    </tr>
-                    <tr>
-                        <td><code>403</code></td>
-                        <td>IP không nằm trong allowlist hoặc bắt buộc HTTPS</td>
-                    </tr>
-                    <tr>
-                        <td><code>405</code></td>
-                        <td>Sai HTTP method</td>
-                    </tr>
-                    <tr>
-                        <td><code>500</code></td>
-                        <td>Lỗi hệ thống</td>
-                    </tr>
-                </tbody>
-            </table>
+        <section>
+            <h2>Flow nối chung để dùng nhanh</h2>
+            <div class="code-box">B1: POST /api/emails.php  -> lấy email vừa tạo
+B2: GET  /api/messages.php?email=...  -> danh sách mail
+B3: GET  /api/messages.php?id=...     -> đọc chi tiết
+B4: DELETE /api/messages.php          -> xóa message (ids hoặc delete_all)
+B5: DELETE /api/emails.php            -> xóa mailbox khi dùng xong</div>
+            <div class="hint-box">
+                API public và API admin đã tách riêng.
+                - API bạn dùng bên ngoài: <code>/api/*.php</code> + API key/secret.
+                - API dashboard admin: <code>/api/admin/*.php</code> + <code>X-ADMIN-ACCESS-KEY</code>.
+            </div>
         </section>
     </div>
 </div>

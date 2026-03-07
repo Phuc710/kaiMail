@@ -2,11 +2,10 @@
 declare(strict_types=1);
 
 /**
- * Bảo mật API:
- * - UI admin: X-ADMIN-ACCESS-KEY
- * - Tool ngoài: X-API-KEY + X-API-SECRET + X-API-TIMESTAMP + X-API-SIGNATURE
+ * Security middleware for external/public API.
  *
- * Không dùng cookie/session cho xác thực API.
+ * Auth method:
+ * - X-API-KEY + X-API-SECRET + X-API-TIMESTAMP + X-API-SIGNATURE
  */
 final class ApiSecurity
 {
@@ -28,7 +27,7 @@ final class ApiSecurity
         }
 
         header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-        header('Access-Control-Allow-Headers: Content-Type, X-ADMIN-ACCESS-KEY, X-API-KEY, X-API-SECRET, X-API-TIMESTAMP, X-API-SIGNATURE');
+        header('Access-Control-Allow-Headers: Content-Type, X-API-KEY, X-API-SECRET, X-API-TIMESTAMP, X-API-SIGNATURE, X-WEB-UI-TOKEN');
         header('Access-Control-Max-Age: 600');
     }
 
@@ -42,20 +41,13 @@ final class ApiSecurity
         exit;
     }
 
-    public static function requireAdminOrApiAuth(): void
-    {
-        self::enforceNetworkPolicy();
-
-        if (self::verifyAdminAccessKeyHeader()) {
-            return;
-        }
-
-        self::requireApiAuth();
-    }
-
     public static function requireApiAuth(): void
     {
         self::enforceNetworkPolicy();
+
+        if (self::verifyWebUiSessionToken()) {
+            return;
+        }
 
         $apiKey = self::getHeader('X-API-KEY');
         $apiSecret = self::getHeader('X-API-SECRET');
@@ -63,20 +55,20 @@ final class ApiSecurity
         $signature = self::getHeader('X-API-SIGNATURE');
 
         if ($apiKey === '' || $apiSecret === '' || $timestampHeader === '' || $signature === '') {
-            self::deny(401, 'Thiếu header xác thực API');
+            self::deny(401, 'Thieu header xac thuc API');
         }
 
         if (!hash_equals((string) API_ACCESS_KEY, $apiKey) || !hash_equals((string) API_SECRET_KEY, $apiSecret)) {
-            self::deny(401, 'API key hoặc secret không hợp lệ');
+            self::deny(401, 'API key hoac secret khong hop le');
         }
 
         $timestamp = (int) $timestampHeader;
         if ($timestamp <= 0) {
-            self::deny(401, 'Timestamp không hợp lệ');
+            self::deny(401, 'Timestamp khong hop le');
         }
 
         if (abs(time() - $timestamp) > API_REQUEST_TTL) {
-            self::deny(401, 'Yêu cầu đã hết thời gian hợp lệ');
+            self::deny(401, 'Yeu cau da het thoi gian hop le');
         }
 
         $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
@@ -85,28 +77,18 @@ final class ApiSecurity
         $expectedSignature = hash_hmac('sha256', $payload, (string) API_SECRET_KEY);
 
         if (!hash_equals($expectedSignature, $signature)) {
-            self::deny(401, 'Chữ ký API không hợp lệ');
+            self::deny(401, 'Chu ky API khong hop le');
         }
-    }
-
-    public static function verifyAdminAccessKeyHeader(): bool
-    {
-        $adminAccessKey = self::getHeader('X-ADMIN-ACCESS-KEY');
-        if ($adminAccessKey === '') {
-            return false;
-        }
-
-        return hash_equals((string) ADMIN_ACCESS_KEY, $adminAccessKey);
     }
 
     private static function enforceNetworkPolicy(): void
     {
-        if (API_REQUIRE_HTTPS && !self::isHttpsRequest()) {
-            self::deny(403, 'Bắt buộc dùng HTTPS');
+        if (API_REQUIRE_HTTPS && !self::isHttpsRequest() && !self::isLocalDevelopmentRequest()) {
+            self::deny(403, 'Bat buoc dung HTTPS');
         }
 
         if (!self::isIpAllowed(self::getClientIp())) {
-            self::deny(403, 'IP không được phép');
+            self::deny(403, 'IP khong duoc phep');
         }
     }
 
@@ -135,6 +117,48 @@ final class ApiSecurity
         return '';
     }
 
+    private static function verifyWebUiSessionToken(): bool
+    {
+        $token = self::getHeader('X-WEB-UI-TOKEN');
+        if ($token === '') {
+            return false;
+        }
+
+        self::startSessionForFallback();
+
+        $sessionToken = trim((string) ($_SESSION['kaimail_web_ui_token'] ?? ''));
+        if ($sessionToken === '') {
+            return false;
+        }
+
+        return hash_equals($sessionToken, $token);
+    }
+
+    private static function startSessionForFallback(): void
+    {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            return;
+        }
+
+        if (defined('SESSION_NAME') && SESSION_NAME !== '') {
+            session_name((string) SESSION_NAME);
+        }
+
+        $secureCookie = (defined('SESSION_COOKIE_SECURE') ? (bool) SESSION_COOKIE_SECURE : false) && self::isHttpsRequest();
+        $cookieParams = [
+            'lifetime' => defined('SESSION_LIFETIME') ? (int) SESSION_LIFETIME : 86400,
+            'path' => defined('SESSION_COOKIE_PATH') ? (string) SESSION_COOKIE_PATH : '/',
+            'domain' => defined('SESSION_COOKIE_DOMAIN') ? (string) SESSION_COOKIE_DOMAIN : '',
+            'secure' => $secureCookie,
+            'httponly' => defined('SESSION_COOKIE_HTTP_ONLY') ? (bool) SESSION_COOKIE_HTTP_ONLY : true,
+            'samesite' => defined('SESSION_COOKIE_SAMESITE') ? (string) SESSION_COOKIE_SAMESITE : 'Lax',
+        ];
+
+        session_set_cookie_params($cookieParams);
+        // Read-only session to avoid locking long-poll and inbox requests together.
+        session_start(['read_and_close' => true]);
+    }
+
     private static function isHttpsRequest(): bool
     {
         $https = strtolower((string) ($_SERVER['HTTPS'] ?? ''));
@@ -148,6 +172,27 @@ final class ApiSecurity
         }
 
         return ((string) ($_SERVER['SERVER_PORT'] ?? '')) === '443';
+    }
+
+    private static function isLocalDevelopmentRequest(): bool
+    {
+        $appEnv = strtolower((string) (defined('ENVIRONMENT') ? ENVIRONMENT : ''));
+        if ($appEnv === 'local' || $appEnv === 'development') {
+            return true;
+        }
+
+        $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? ''));
+        $host = preg_replace('/:\d+$/', '', $host);
+        if (in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+            return true;
+        }
+
+        $remoteAddr = trim((string) ($_SERVER['REMOTE_ADDR'] ?? ''));
+        if (in_array($remoteAddr, ['127.0.0.1', '::1'], true)) {
+            return true;
+        }
+
+        return false;
     }
 
     private static function getClientIp(): string

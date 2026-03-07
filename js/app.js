@@ -1,120 +1,21 @@
 /**
- * KaiMail - User JavaScript
- * Handles email input, inbox, and message viewing
+ * KaiMail User Inbox (basic + optimized).
+ * Flow: email -> Get Mail -> read OTP quickly.
  */
 
-class KaiMail {
+class KaiMailTime {
     constructor() {
-        this.currentEmail = null;
-        this.currentEmailId = null;
-        this.refreshInterval = null;
-        this.isLoading = false;
-        this.longPollActive = false;
-        this.lastCheck = null;
-        this.vnTimeZone = 'Asia/Ho_Chi_Minh';
-        this.vnLocale = 'vi-VN';
-        // Get base path from config to avoid rewrite issues
-        this.basePath = window.KAIMAIL_CONFIG?.baseUrl || '';
-        // Remove trailing slash if present to avoid double slashes
-        this.basePath = this.basePath.replace(/\/$/, '');
-        this.init();
+        this.vnTimeZone = "Asia/Ho_Chi_Minh";
     }
 
-    init() {
-        // DOM Elements
-        this.emailInput = document.getElementById('emailInput');
-        this.getMailBtn = document.getElementById('getMailBtn');
-        this.copyBtn = document.getElementById('copyBtn'); // Restored  
-        this.inboxSection = document.getElementById('inboxSection');
-        this.messagesList = document.getElementById('messagesList');
-        this.emptyState = document.getElementById('emptyState');
-        this.loadingState = document.getElementById('loadingState');
-        this.unreadBadge = document.getElementById('unreadBadge');
-        this.refreshBtn = document.getElementById('refreshBtn');
-        this.modal = document.getElementById('emailModal');
-        this.modalSubject = document.getElementById('modalSubject');
-        this.modalFrom = document.getElementById('modalFrom');
-        this.modalBody = document.getElementById('modalBody');
-        this.closeModalBtn = document.getElementById('closeModal');
-
-        // Event Listeners
-        this.getMailBtn.addEventListener('click', () => this.getMail());
-        this.emailInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.getMail();
-        });
-        // Smart paste - auto format email - Removed aggressive formatting
-        // this.emailInput.addEventListener('paste', (e) => {
-        //     setTimeout(() => this.formatEmailInput(), 10);
-        // });
-        // this.emailInput.addEventListener('input', () => this.formatEmailInput());
-        this.copyBtn.addEventListener('click', () => this.copyEmail()); // Restored
-        this.refreshBtn.addEventListener('click', () => this.handleManualRefresh());
-        this.closeModalBtn.addEventListener('click', () => this.closeModal());
-        this.modal.querySelector('.modal-backdrop').addEventListener('click', () => this.closeModal());
-
-        // ESC to close modal
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && !this.modal.classList.contains('hidden')) {
-                this.closeModal();
-            }
-        });
-
-        // Check URL for email parameter (Query string or Path)
-        const urlParams = new URLSearchParams(window.location.search);
-        let emailParam = urlParams.get('email');
-
-        if (!emailParam) {
-            let path = window.location.pathname;
-
-            let basePath = this.basePath;
-            try {
-                if (basePath.startsWith('http')) {
-                    const url = new URL(basePath);
-                    basePath = url.pathname;
-                }
-            } catch (e) { }
-
-            // Remove trailing slash
-            path = path.replace(/\/$/, '');
-            basePath = basePath.replace(/\/$/, '');
-
-            if (path.startsWith(basePath)) {
-                const potentialEmail = path.substring(basePath.length).replace(/^\//, '');
-                if (potentialEmail && potentialEmail.includes('@') && !['admin', 'index.php', 'api', 'css', 'js'].includes(potentialEmail.split('/')[0])) {
-                    emailParam = potentialEmail;
-                }
-            }
+    parse(value) {
+        if (value instanceof Date) {
+            return Number.isNaN(value.getTime()) ? null : value;
         }
 
-        if (emailParam) {
-            // Keep full email in input (don't strip domain)
-            this.emailInput.value = emailParam;
-            this.getMail();
-        }
+        const raw = String(value || "").trim();
+        if (raw === "") return null;
 
-        // Check localStorage for last email
-        const lastEmail = localStorage.getItem('kaimail_email');
-        if (lastEmail && !emailParam) {
-            // Keep full email in input
-            this.emailInput.value = lastEmail;
-        }
-    }
-
-    formatEmailInput() {
-        // Disabled aggressive formatting to allow full email paste
-        // let value = this.emailInput.value.trim().toLowerCase();
-        // this.emailInput.value = value;
-    }
-
-    parseDateInput(dateValue) {
-        if (dateValue instanceof Date) {
-            return Number.isNaN(dateValue.getTime()) ? null : dateValue;
-        }
-
-        const raw = String(dateValue || '').trim();
-        if (raw === '') return null;
-
-        // MySQL datetime "YYYY-MM-DD HH:mm:ss" được hiểu theo giờ VN (+07:00).
         const sqlMatch = raw.match(
             /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/
         );
@@ -124,36 +25,33 @@ class KaiMail {
             const year = Number(sqlMatch[1]);
             const month = Number(sqlMatch[2]);
             const day = Number(sqlMatch[3]);
-            const hour = Number(sqlMatch[4] || '0');
-            const minute = Number(sqlMatch[5] || '0');
-            const second = Number(sqlMatch[6] || '0');
+            const hour = Number(sqlMatch[4] || "0");
+            const minute = Number(sqlMatch[5] || "0");
+            const second = Number(sqlMatch[6] || "0");
             const utcMs = Date.UTC(year, month - 1, day, hour - 7, minute, second);
             return new Date(utcMs);
         }
 
         const parsed = new Date(raw);
-        if (Number.isNaN(parsed.getTime())) {
-            return null;
-        }
-        return parsed;
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
     }
 
-    getVnTimeParts(dateValue) {
-        const parsedDate = this.parseDateInput(dateValue);
-        if (!parsedDate) return null;
+    getVnParts(value) {
+        const date = this.parse(value);
+        if (!date) return null;
 
-        const parts = new Intl.DateTimeFormat('en-GB', {
+        const parts = new Intl.DateTimeFormat("en-GB", {
             timeZone: this.vnTimeZone,
             hour12: false,
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-        }).formatToParts(parsedDate);
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+        }).formatToParts(date);
 
-        const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+        const map = Object.fromEntries(parts.map((p) => [p.type, p.value]));
         return {
             year: map.year,
             month: map.month,
@@ -164,508 +62,625 @@ class KaiMail {
         };
     }
 
-    getCurrentSqlDateTimeVN() {
-        const nowParts = this.getVnTimeParts(new Date());
-        if (!nowParts) return '';
-        return `${nowParts.year}-${nowParts.month}-${nowParts.day} ${nowParts.hour}:${nowParts.minute}:${nowParts.second}`;
-    }
-
-    async getMail() {
-        let email = this.emailInput.value.trim().toLowerCase();
-
-        if (!email) {
-            this.showToast('Vui lòng nhập email', 'error');
-            this.emailInput.focus();
-            return;
-        }
-
-        // Require full email with @
-        if (!email.includes('@')) {
-            this.showToast('Vui lòng nhập đầy đủ email (ví dụ: user@domain.com)', 'error');
-            this.emailInput.focus();
-            return;
-        }
-
-        this.getMailBtn.disabled = true;
-
-        try {
-            const response = await fetch(`${this.basePath}/api/emails.php?action=check&email=${encodeURIComponent(email)}`);
-            const data = await response.json();
-
-            if (!response.ok) {
-                if (response.status === 404) {
-                    this.showToast('Email không tồn tại trong hệ thống', 'error');
-                } else if (response.status === 410) {
-                    this.showToast('Email đã hết hạn', 'error');
-                } else {
-                    this.showToast(this.localizeApiError(data.error), 'error');
-                }
-                return;
-            }
-
-            // Email exists and active
-            this.currentEmail = email;
-            this.currentEmailId = data.id;
-            localStorage.setItem('kaimail_email', email);
-
-            // Update URL to path format: /kaiMail/email@domain.com
-            const newUrl = `${this.basePath}/${email}`;
-            window.history.replaceState({}, '', newUrl);
-
-            // Show copy button
-            this.copyBtn.style.display = 'flex';
-
-            // Show inbox section
-            this.inboxSection.classList.remove('hidden');
-
-            // Load messages
-            this.loadMessages();
-
-            // Start long polling instead of simple interval
-            this.startLongPolling();
-
-        } catch (error) {
-            console.error('Error:', error);
-            this.showToast('Không thể kết nối đến máy chủ', 'error');
-        } finally {
-            this.getMailBtn.disabled = false;
-            this.getMailBtn.innerHTML = `
-                <span>Mở inbox</span>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="5" y1="12" x2="19" y2="12"/>
-                    <polyline points="12 5 19 12 12 19"/>
-                </svg>
-            `;
-        }
-    }
-
-    async handleManualRefresh() {
-        await this.loadMessages({ manual: true });
-    }
-
-    async loadMessages(options = {}) {
-        const { manual = false } = options;
-
-        if (!this.currentEmail) {
-            if (manual) this.emailInput.focus();
-            return false;
-        }
-
-        if (this.isLoading) return false;
-
-        this.isLoading = true;
-        this.refreshBtn.disabled = true;
-        this.refreshBtn.classList.add('spinning');
-
-        // Ensure spinner shows for at least 500ms
-        const minSpinTime = new Promise(resolve => setTimeout(resolve, 500));
-
-        try {
-            const [response, _] = await Promise.all([
-                fetch(`${this.basePath}/api/messages.php?email=${encodeURIComponent(this.currentEmail)}`),
-                minSpinTime
-            ]);
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(this.localizeApiError(data.error || 'Không thể tải danh sách thư'));
-            }
-
-            this.renderMessages(data.messages || []);
-            this.updateUnreadBadge(data.unread);
-
-            // Update lastCheck from server time to ensure synchronization
-            if (data.server_time) {
-                this.lastCheck = data.server_time;
-                // Update polling manager if active
-                if (this.pollingManager) {
-                    this.pollingManager.updateLastCheck(this.lastCheck);
-                }
-            }
-
-            return true;
-
-        } catch (error) {
-            console.error('Error loading messages:', error);
-            return false;
-        } finally {
-            this.isLoading = false;
-            this.refreshBtn.disabled = false;
-            this.refreshBtn.classList.remove('spinning');
-            // Reset timer so we don't refresh again immediately if user just clicked
-            this.startAutoRefresh();
-        }
-    }
-
-    renderMessages(messages) {
-        if (!messages || messages.length === 0) {
-            this.messagesList.classList.add('hidden');
-            this.loadingState.classList.add('hidden');
-            this.emptyState.classList.remove('hidden');
-            return;
-        }
-
-        this.emptyState.classList.add('hidden');
-        this.loadingState.classList.add('hidden');
-        this.messagesList.classList.remove('hidden');
-
-        // Preserve scroll position if refreshing
-        const scrollTop = this.messagesList.scrollTop;
-
-        this.messagesList.innerHTML = messages.map(msg => `
-            <div class="message-item ${msg.is_read ? '' : 'unread'}" data-id="${msg.id}">
-                <div class="message-dot"></div>
-                <div class="message-content">
-                    <div class="message-sender">${this.getDisplayName(msg)}</div>
-                    <div class="message-subject">${this.escapeHtml(msg.subject)}</div>
-                    <div class="message-preview">${this.escapeHtml(msg.preview || '')}</div>
-                </div>
-                <div class="message-time">${this.formatTime(msg.received_at)}</div>
-            </div>
-        `).join('');
-
-        this.messagesList.scrollTop = scrollTop;
-
-        // Add click listeners
-        this.messagesList.querySelectorAll('.message-item').forEach(item => {
-            item.addEventListener('click', () => this.openMessage(item.dataset.id));
-        });
-    }
-
-    async openMessage(id) {
-        try {
-            const response = await fetch(`${this.basePath}/api/messages.php?id=${id}`);
-            const message = await response.json();
-
-            if (!response.ok) {
-                throw new Error(this.localizeApiError(message.error || 'Không thể tải nội dung thư'));
-            }
-
-            // Set subject and from info
-            this.modalSubject.textContent = message.subject;
-            this.modalFrom.innerHTML = `Người gửi: <strong>${this.getDisplayName(message)}</strong> &nbsp;|&nbsp; ${this.formatDateTime(message.received_at)}`;
-
-            // Render body with same logic as admin
-            const body = this.modalBody;
-            if (message.body_html) {
-                // HTML email - use .email-body class for proper CSS styling
-                body.className = 'modal-body email-body';
-                body.innerHTML = message.body_html;
-            } else {
-                // Plain text email
-                body.className = 'modal-body text-only';
-                body.textContent = message.body_text || '(Không có nội dung)';
-                body.style.whiteSpace = 'pre-wrap';
-            }
-
-            // Show modal
-            this.modal.classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
-
-            // Mark as read in UI
-            const messageItem = this.messagesList.querySelector(`[data-id="${id}"]`);
-            if (messageItem) {
-                messageItem.classList.remove('unread');
-            }
-
-            // Update unread count
-            const currentUnread = parseInt(this.unreadBadge.textContent) || 0;
-            if (currentUnread > 0) {
-                this.updateUnreadBadge(currentUnread - 1);
-            }
-
-        } catch (error) {
-            console.error('Error opening message:', error);
-            this.showToast('Không thể mở email', 'error');
-        }
-    }
-
-    closeModal() {
-        this.modal.classList.add('hidden');
-        document.body.style.overflow = '';
-    }
-
-    copyEmail() {
-        if (!this.currentEmail) return;
-
-        navigator.clipboard.writeText(this.currentEmail).then(() => {
-            this.showToast('Đã sao chép email vào clipboard', 'success');
-        }).catch(() => {
-            // Fallback
-            const input = document.createElement('input');
-            input.value = this.currentEmail;
-            document.body.appendChild(input);
-            input.select();
-            document.execCommand('copy');
-            document.body.removeChild(input);
-            this.showToast('Đã sao chép email vào clipboard', 'success');
-        });
-    }
-
-    updateUnreadBadge(count, animate = false) {
-        if (count > 0) {
-            this.unreadBadge.textContent = count;
-            this.unreadBadge.classList.remove('hidden');
-
-            // Add pulse animation if requested
-            if (animate) {
-                this.unreadBadge.classList.add('updated');
-                setTimeout(() => {
-                    this.unreadBadge.classList.remove('updated');
-                }, 500);
-            }
-        } else {
-            this.unreadBadge.classList.add('hidden');
-        }
-    }
-
-    startLongPolling() {
-        this.stopLongPolling();
-
-        // Initialize Long Polling Manager
-        if (!this.pollingManager) {
-            this.pollingManager = new LongPollingManager({
-                basePath: this.basePath,
-                onNewMessages: (messages, count) => this.handleNewMessages(messages, count),
-                onError: (error, retryCount) => {
-                    console.error(`Long polling error (retry ${retryCount}):`, error);
-                },
-                onStatusChange: (status) => {
-                    console.log('Long polling status:', status);
-                }
-            });
-        }
-
-        // Start polling
-        // Use lastCheck from server if available, otherwise fallback to local time calculation
-        if (!this.lastCheck) {
-            this.lastCheck = this.getCurrentSqlDateTimeVN();
-        }
-
-        this.pollingManager.start(this.currentEmailId, this.lastCheck);
-        this.longPollActive = true;
-    }
-
-    stopLongPolling() {
-        this.longPollActive = false;
-        if (this.pollingManager) {
-            this.pollingManager.stop();
-        }
-    }
-
-    /**
-     * Handle new messages from long polling
-     * Smart update - only prepend new messages, no full re-render
-     */
-    async handleNewMessages(messages, count) {
-        if (!messages || messages.length === 0) return;
-
-        // Update last check timestamp
-        if (this.pollingManager) {
-            this.lastCheck = this.getCurrentSqlDateTimeVN();
-            this.pollingManager.updateLastCheck(this.lastCheck);
-        }
-
-        this.showToast(`${count} email mới`, 'success', 'Tin nhắn mới');
-
-        // Smart UI update - prepend new messages with animation
-        this.prependNewMessages(messages);
-
-        // Update unread badge with animation
-        const currentUnread = parseInt(this.unreadBadge.textContent) || 0;
-        this.updateUnreadBadge(currentUnread + count, true);
-    }
-
-    /**
-     * Prepend new messages to the list with smooth animation
-     * No flash, no full re-render
-     */
-    prependNewMessages(messages) {
-        if (!messages || messages.length === 0) return;
-
-        // Ensure messages list is visible
-        this.emptyState.classList.add('hidden');
-        this.loadingState.classList.add('hidden');
-        this.messagesList.classList.remove('hidden');
-
-        // Preserve scroll position
-        const scrollTop = this.messagesList.scrollTop;
-
-        // Create HTML for new messages
-        const newMessagesHtml = messages.map(msg => `
-            <div class="message-item ${msg.is_read ? '' : 'unread'} new-message" data-id="${msg.id}">
-                <div class="message-dot new-indicator"></div>
-                <div class="message-content">
-                    <div class="message-sender">${this.escapeHtml(msg.from_name || msg.from_email)}</div>
-                    <div class="message-subject">${this.escapeHtml(msg.subject)}</div>
-                    <div class="message-preview">${this.escapeHtml(msg.preview || '')}</div>
-                </div>
-                <div class="message-time">${this.formatTime(msg.received_at)}</div>
-            </div>
-        `).join('');
-
-        // Prepend to list
-        this.messagesList.insertAdjacentHTML('afterbegin', newMessagesHtml);
-
-        // Restore scroll position
-        this.messagesList.scrollTop = scrollTop;
-
-        // Add click listeners to new messages
-        const newItems = this.messagesList.querySelectorAll('.message-item.new-message');
-        newItems.forEach(item => {
-            item.addEventListener('click', () => this.openMessage(item.dataset.id));
-
-            // Remove animation class after animation completes
-            setTimeout(() => {
-                item.classList.remove('new-message');
-                item.querySelector('.message-dot')?.classList.remove('new-indicator');
-            }, 1500);
-        });
-    }
-
-    // Keep this for manual refresh button
-    startAutoRefresh() {
-        // Deprecated - using long polling now
-        // Kept for compatibility
-    }
-
-    showToast(message, type = '', title = '') {
-        const iconMap = {
-            success: 'success',
-            error: 'error',
-            warning: 'warning',
-            info: 'info'
-        };
-        const messageText = this.localizeApiError(message);
-        const titleText = title ? this.localizeApiError(title) : '';
-
-        Swal.fire({
-            toast: true,
-            position: 'top-end',
-            icon: iconMap[type] || 'info',
-            title: titleText || messageText,
-            text: titleText ? messageText : '',
-            showConfirmButton: false,
-            timer: type === 'error' ? 4500 : 3000,
-            timerProgressBar: true,
-            customClass: {
-                popup: 'km-toast'
-            },
-            didOpen: (toast) => {
-                toast.addEventListener('mouseenter', Swal.stopTimer);
-                toast.addEventListener('mouseleave', Swal.resumeTimer);
-            }
-        });
-    }
-
-    getDisplayName(msg) {
-        let name = msg.from_name;
-        const email = msg.from_email || '';
-
-        // Prefer name if it exists and isn't just the email
-        if (name && name !== email) {
-            // Filter out ugly names like "Em7877" or "bounces+..."
-            if (/^Em\d+$/i.test(name) || name.includes('bounces+')) {
-                // fall through to email processing
-            } else {
-                return this.escapeHtml(name);
-            }
-        }
-
-        // Smart email extraction
-        if (email.includes('openai.com')) return 'OpenAI';
-        if (email.includes('facebook.com')) return 'Facebook';
-        if (email.includes('google.com')) return 'Google';
-
-        // Extract name from email
-        const match = email.match(/^([^@]+)/);
-        if (match) {
-            let part = match[1];
-            // Remove +tag if present
-            if (part.includes('+')) part = part.split('+')[0];
-            // Capitalize
-            return this.escapeHtml(part.charAt(0).toUpperCase() + part.slice(1));
-        }
-
-        return this.escapeHtml(email);
-    }
-
-    extractSender(email) {
-        // Legacy, redirected to getDisplayName logic but simpler
-        if (!email) return 'Không rõ';
-        if (email.includes('openai.com')) return 'OpenAI';
-        return email.split('@')[0];
-    }
-
-    localizeApiError(message) {
-        if (!message) return 'Đã xảy ra lỗi';
-        const text = String(message).trim();
-        const lowered = text.toLowerCase();
-
-        const dictionary = {
-            unauthorized: 'Không được phép truy cập',
-            'method not allowed': 'Phương thức không được hỗ trợ',
-            'not found': 'Không tìm thấy dữ liệu',
-            'an error occurred': 'Đã xảy ra lỗi',
-            'internal server error': 'Lỗi máy chủ nội bộ',
-            'server error': 'Lỗi máy chủ',
-            'fatal error': 'Lỗi nghiêm trọng',
-            'email is required': 'Email là bắt buộc',
-            'invalid email format': 'Định dạng email không hợp lệ',
-            'email not found': 'Email không tồn tại trong hệ thống',
-            'email has expired': 'Email đã hết hạn',
-            'message not found': 'Không tìm thấy tin nhắn',
-            'polling failed': 'Không thể đồng bộ hộp thư',
-            'database connection failed': 'Không thể kết nối cơ sở dữ liệu',
-            'invalid json': 'Dữ liệu JSON không hợp lệ',
-            'missing required fields': 'Thiếu trường dữ liệu bắt buộc',
-            'email_id required': 'Thiếu email_id'
-        };
-
-        if (dictionary[lowered]) {
-            return dictionary[lowered];
-        }
-
-        return text;
-    }
-
-    formatTime(dateStr) {
-        const date = this.parseDateInput(dateStr);
-        if (!date) return '';
+    formatRelative(value) {
+        const date = this.parse(value);
+        if (!date) return "";
 
         const diff = Date.now() - date.getTime();
-
         const minutes = Math.floor(diff / 60000);
         const hours = Math.floor(diff / 3600000);
         const days = Math.floor(diff / 86400000);
 
-        if (minutes < 1) return 'Vừa xong';
+        if (minutes < 1) return "Vừa xong";
         if (minutes < 60) return `${minutes} phút trước`;
         if (hours < 24) return `${hours} giờ trước`;
         if (days < 7) return `${days} ngày trước`;
 
-        const parts = this.getVnTimeParts(date);
-        if (!parts) return '';
-        return `${parts.day}/${parts.month}/${parts.year}`;
+        const p = this.getVnParts(date);
+        if (!p) return "";
+        return `${p.day}/${p.month}/${p.year}`;
     }
 
-    formatDateTime(dateStr) {
-        const parts = this.getVnTimeParts(dateStr);
-        if (!parts) return '';
-        return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}`;
+    formatDateTime(value) {
+        const p = this.getVnParts(value);
+        if (!p) return "";
+        return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
     }
 
-    escapeHtml(str) {
-        if (!str) return '';
-        const div = document.createElement('div');
-        div.textContent = str;
+    nowSqlVN() {
+        const p = this.getVnParts(new Date());
+        if (!p) return "";
+        return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
+    }
+}
+
+class KaiMailApi {
+    constructor(baseUrl, webToken) {
+        this.baseUrl = String(baseUrl || "").trim().replace(/\/+$/, "");
+        this.webToken = String(webToken || "").trim();
+        this.requestTimeoutMs = 12000;
+    }
+
+    buildUrl(path, query = {}) {
+        const cleanPath = path.startsWith("/") ? path : `/${path}`;
+        const url = `${this.baseUrl}${cleanPath}`;
+        const params = new URLSearchParams();
+
+        Object.entries(query).forEach(([k, v]) => {
+            if (v === null || v === undefined || v === "") return;
+            params.set(k, String(v));
+        });
+
+        const queryString = params.toString();
+        return queryString === "" ? url : `${url}?${queryString}`;
+    }
+
+    buildHeaders() {
+        const headers = { Accept: "application/json" };
+        if (this.webToken !== "") {
+            headers["X-WEB-UI-TOKEN"] = this.webToken;
+        }
+        return headers;
+    }
+
+    async getJson(path, query = {}) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+        try {
+            const response = await fetch(this.buildUrl(path, query), {
+                method: "GET",
+                headers: this.buildHeaders(),
+                credentials: "same-origin",
+                cache: "no-store",
+                signal: controller.signal,
+            });
+
+            let data = null;
+            try {
+                data = await response.json();
+            } catch (error) {
+                data = null;
+            }
+
+            return { ok: response.ok, status: response.status, data };
+        } catch (error) {
+            if (error?.name === "AbortError") {
+                throw new Error("Kết nối chậm, vui lòng thử lại");
+            }
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
+    fetchMessages(email, limit = 25) {
+        return this.getJson("/api/messages.php", { email, limit });
+    }
+
+    fetchMessageById(id) {
+        return this.getJson("/api/messages.php", { id });
+    }
+}
+
+class KaiMailUserPage {
+    constructor() {
+        this.config = window.KAIMAIL_CONFIG || {};
+        this.baseUrl = String(this.config.baseUrl || "").trim();
+        this.webToken = String(this.config.userToken || "").trim();
+        this.basePath = this.extractBasePath(this.baseUrl);
+        this.storageKey = "kaimail_email";
+
+        this.time = new KaiMailTime();
+        this.api = new KaiMailApi(this.baseUrl, this.webToken);
+
+        this.state = {
+            currentEmail: "",
+            currentEmailId: 0,
+            loading: false,
+            unread: 0,
+            renderedIds: new Set(),
+            lastCheck: "",
+        };
+
+        this.poller = null;
+
+        this.bindDom();
+    }
+
+    bindDom() {
+        this.emailInput = document.getElementById("emailInput");
+        this.getMailBtn = document.getElementById("getMailBtn");
+        this.copyBtn = document.getElementById("copyBtn");
+        this.refreshBtn = document.getElementById("refreshBtn");
+        this.inboxSection = document.getElementById("inboxSection");
+        this.messagesList = document.getElementById("messagesList");
+        this.emptyState = document.getElementById("emptyState");
+        this.loadingState = document.getElementById("loadingState");
+        this.unreadBadge = document.getElementById("unreadBadge");
+
+        this.modal = document.getElementById("emailModal");
+        this.modalSubject = document.getElementById("modalSubject");
+        this.modalFrom = document.getElementById("modalFrom");
+        this.modalBody = document.getElementById("modalBody");
+        this.closeModalBtn = document.getElementById("closeModal");
+
+        this.defaultGetBtnHtml = this.getMailBtn ? this.getMailBtn.innerHTML : "";
+    }
+
+    ready() {
+        return Boolean(
+            this.emailInput &&
+            this.getMailBtn &&
+            this.copyBtn &&
+            this.refreshBtn &&
+            this.inboxSection &&
+            this.messagesList &&
+            this.emptyState &&
+            this.loadingState &&
+            this.unreadBadge &&
+            this.modal &&
+            this.modalSubject &&
+            this.modalFrom &&
+            this.modalBody &&
+            this.closeModalBtn
+        );
+    }
+
+    init() {
+        if (!this.ready()) return;
+
+        this.getMailBtn.addEventListener("click", () => this.openInboxFromInput());
+        this.emailInput.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            this.openInboxFromInput();
+        });
+        this.copyBtn.addEventListener("click", () => this.copyEmail());
+        this.refreshBtn.addEventListener("click", () => this.loadMessages({ manual: true }));
+
+        this.messagesList.addEventListener("click", (event) => {
+            const item = event.target.closest(".message-item");
+            if (!item) return;
+            const id = Number(item.getAttribute("data-id") || "0");
+            if (id > 0) this.openMessage(id);
+        });
+
+        this.closeModalBtn.addEventListener("click", () => this.closeModal());
+        this.modal.querySelector(".modal-backdrop")?.addEventListener("click", () => this.closeModal());
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape" && !this.modal.classList.contains("hidden")) {
+                this.closeModal();
+            }
+        });
+        window.addEventListener("beforeunload", () => this.stopPolling());
+
+        const initialEmail = this.resolveInitialEmail();
+        if (initialEmail !== "") {
+            this.emailInput.value = initialEmail;
+            this.openInbox(initialEmail, true);
+            return;
+        }
+
+        const cachedEmail = String(localStorage.getItem(this.storageKey) || "").trim();
+        if (cachedEmail !== "") {
+            this.emailInput.value = cachedEmail;
+        }
+    }
+
+    async openInboxFromInput() {
+        const email = this.normalizeEmail(this.emailInput.value);
+        await this.openInbox(email, false);
+    }
+
+    async openInbox(email, autoOpen = false) {
+        if (!this.isValidEmail(email)) {
+            this.toast("Vui lòng nhập email đầy đủ (ví dụ: user@domain.com)", "error");
+            this.emailInput.focus();
+            return false;
+        }
+
+        this.state.currentEmail = email;
+        this.showInbox(true);
+        this.showCopyButton(true);
+        this.setGetMailLoading(true);
+
+        const loaded = await this.loadMessages({ manual: !autoOpen, showLoading: true, limit: 25 });
+        this.setGetMailLoading(false);
+
+        if (!loaded) return false;
+
+        localStorage.setItem(this.storageKey, email);
+        this.updateUrl(email);
+        this.startPolling();
+        return true;
+    }
+
+    async loadMessages({ manual = false, showLoading = false, limit = 25 } = {}) {
+        const email = this.state.currentEmail;
+        if (email === "") {
+            if (manual) this.emailInput.focus();
+            return false;
+        }
+
+        if (this.state.loading) return false;
+        this.state.loading = true;
+
+        this.setRefreshLoading(true);
+        if (showLoading) this.showLoading(true);
+
+        try {
+            const { ok, status, data } = await this.api.fetchMessages(email, limit);
+            if (!ok) {
+                if (status === 404) throw new Error("Email không tồn tại trong hệ thống");
+                if (status === 410) throw new Error("Email đã hết hạn");
+                throw new Error(data?.error || `Không thể tải hộp thư (HTTP ${status || 0})`);
+            }
+
+            this.state.currentEmailId = Number(data?.email_id || 0);
+            this.state.lastCheck = String(data?.server_time || "").trim();
+            this.state.unread = Number(data?.unread || 0);
+            this.state.renderedIds = new Set();
+
+            const messages = Array.isArray(data?.messages) ? data.messages : [];
+            this.renderMessages(messages, true);
+            this.setUnread(this.state.unread);
+            return true;
+        } catch (error) {
+            this.toast(error?.message || "Không thể tải hộp thư", "error");
+            return false;
+        } finally {
+            this.state.loading = false;
+            this.setRefreshLoading(false);
+            this.showLoading(false);
+        }
+    }
+
+    renderMessages(messages, reset = false) {
+        const list = Array.isArray(messages) ? messages : [];
+
+        if (reset) {
+            this.messagesList.innerHTML = "";
+            this.state.renderedIds = new Set();
+        }
+
+        if (reset && list.length === 0) {
+            this.showEmpty(true);
+            this.showMessageList(false);
+            return;
+        }
+
+        if (list.length > 0) {
+            const rows = [];
+            list.forEach((msg) => {
+                const id = Number(msg?.id || 0);
+                if (id < 1 || this.state.renderedIds.has(id)) return;
+                this.state.renderedIds.add(id);
+                rows.push(this.buildMessageRow(msg));
+            });
+
+            if (rows.length > 0) {
+                if (reset) {
+                    this.messagesList.innerHTML = rows.join("");
+                } else {
+                    this.messagesList.insertAdjacentHTML("afterbegin", rows.join(""));
+                }
+            }
+        }
+
+        this.showEmpty(this.state.renderedIds.size === 0);
+        this.showMessageList(this.state.renderedIds.size > 0);
+    }
+
+    buildMessageRow(msg) {
+        const id = Number(msg?.id || 0);
+        const unread = Number(msg?.is_read || 0) === 0;
+        const sender = this.escapeHtml(this.getDisplayName(msg));
+        const subject = this.escapeHtml(String(msg?.subject || "(Không có tiêu đề)"));
+        const preview = this.escapeHtml(String(msg?.preview || ""));
+        const timeText = this.escapeHtml(this.time.formatRelative(msg?.received_at));
+
+        return `
+            <div class="message-item ${unread ? "unread" : ""}" data-id="${id}">
+                <div class="message-dot"></div>
+                <div class="message-content">
+                    <div class="message-sender">${sender}</div>
+                    <div class="message-subject">${subject}</div>
+                    <div class="message-preview">${preview}</div>
+                </div>
+                <div class="message-time">${timeText}</div>
+            </div>
+        `;
+    }
+
+    async openMessage(id) {
+        try {
+            const { ok, data } = await this.api.fetchMessageById(id);
+            if (!ok || !data) {
+                throw new Error(data?.error || "Không thể mở email");
+            }
+
+            const sender = this.getDisplayName(data);
+            const receivedAt = this.time.formatDateTime(data?.received_at);
+
+            this.modalSubject.textContent = String(data?.subject || "(Không có tiêu đề)");
+            this.modalFrom.innerHTML = `Người gửi: <strong>${this.escapeHtml(sender)}</strong> &nbsp;|&nbsp; ${this.escapeHtml(receivedAt)}`;
+
+            if (String(data?.body_html || "").trim() !== "") {
+                this.modalBody.className = "modal-body email-body";
+                this.modalBody.innerHTML = String(data.body_html);
+            } else {
+                this.modalBody.className = "modal-body text-only";
+                this.modalBody.textContent = String(data?.body_text || "(Không có nội dung)");
+            }
+
+            this.modal.classList.remove("hidden");
+            document.body.style.overflow = "hidden";
+
+            const row = this.messagesList.querySelector(`.message-item[data-id="${id}"]`);
+            if (row && row.classList.contains("unread")) {
+                row.classList.remove("unread");
+                if (this.state.unread > 0) {
+                    this.state.unread -= 1;
+                    this.setUnread(this.state.unread);
+                }
+            }
+        } catch (error) {
+            this.toast(error?.message || "Không thể mở email", "error");
+        }
+    }
+
+    closeModal() {
+        this.modal.classList.add("hidden");
+        document.body.style.overflow = "";
+    }
+
+    async copyEmail() {
+        const email = this.state.currentEmail;
+        if (email === "") return;
+
+        try {
+            await navigator.clipboard.writeText(email);
+            this.toast("Đã sao chép email", "success");
+        } catch (error) {
+            const input = document.createElement("input");
+            input.value = email;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand("copy");
+            document.body.removeChild(input);
+            this.toast("Đã sao chép email", "success");
+        }
+    }
+
+    startPolling() {
+        if (this.state.currentEmailId < 1 || typeof window.LongPollingManager !== "function") return;
+
+        if (!this.poller) {
+            this.poller = new window.LongPollingManager({
+                basePath: this.baseUrl,
+                webToken: this.webToken,
+                onNewMessages: (messages, _count, payload) => this.handleNewMessages(messages, payload),
+                onError: (err) => console.error("polling error:", err),
+            });
+        } else {
+            this.poller.stop();
+        }
+
+        if (this.state.lastCheck === "") {
+            this.state.lastCheck = this.time.nowSqlVN();
+        }
+
+        this.poller.start(this.state.currentEmailId, this.state.lastCheck);
+    }
+
+    stopPolling() {
+        if (!this.poller) return;
+        this.poller.stop();
+    }
+
+    handleNewMessages(messages, payload) {
+        const list = Array.isArray(messages) ? messages : [];
+        if (list.length === 0) return;
+
+        this.renderMessages(list, false);
+
+        const unreadAdded = list.reduce((sum, msg) => {
+            return sum + (Number(msg?.is_read || 0) === 0 ? 1 : 0);
+        }, 0);
+        if (unreadAdded > 0) {
+            this.state.unread += unreadAdded;
+            this.setUnread(this.state.unread);
+        }
+
+        this.state.lastCheck = String(payload?.last_check || payload?.server_time || "").trim() || this.time.nowSqlVN();
+        if (this.poller) {
+            this.poller.updateLastCheck(this.state.lastCheck);
+        }
+    }
+
+    setUnread(count) {
+        const n = Number(count || 0);
+        if (n > 0) {
+            this.unreadBadge.textContent = String(n);
+            this.unreadBadge.classList.remove("hidden");
+            return;
+        }
+        this.unreadBadge.textContent = "0";
+        this.unreadBadge.classList.add("hidden");
+    }
+
+    showInbox(show) {
+        this.inboxSection.classList.toggle("hidden", !show);
+    }
+
+    showMessageList(show) {
+        this.messagesList.classList.toggle("hidden", !show);
+    }
+
+    showEmpty(show) {
+        this.emptyState.classList.toggle("hidden", !show);
+    }
+
+    showLoading(show) {
+        this.loadingState.classList.toggle("hidden", !show);
+        if (show) {
+            this.showEmpty(false);
+            this.showMessageList(false);
+        }
+    }
+
+    showCopyButton(show) {
+        this.copyBtn.style.display = show ? "inline-flex" : "none";
+    }
+
+    setGetMailLoading(loading) {
+        this.getMailBtn.disabled = Boolean(loading);
+        if (loading) {
+            this.getMailBtn.innerHTML = "<span>Đang mở...</span>";
+            return;
+        }
+        this.getMailBtn.innerHTML = this.defaultGetBtnHtml;
+    }
+
+    setRefreshLoading(loading) {
+        this.refreshBtn.disabled = Boolean(loading);
+        this.refreshBtn.classList.toggle("spinning", Boolean(loading));
+    }
+
+    toast(message, type = "info") {
+        const iconMap = { success: "success", error: "error", warning: "warning", info: "info" };
+        const text = this.localizeError(message);
+
+        if (window.Swal && typeof window.Swal.fire === "function") {
+            window.Swal.fire({
+                toast: true,
+                position: "top-end",
+                icon: iconMap[type] || "info",
+                title: text,
+                showConfirmButton: false,
+                timer: type === "error" ? 4500 : 2500,
+                timerProgressBar: true,
+                customClass: { popup: "km-toast" },
+            });
+            return;
+        }
+
+        alert(text);
+    }
+
+    localizeError(message) {
+        if (!message) return "Đã xảy ra lỗi";
+        const raw = String(message).trim();
+        const key = raw.toLowerCase();
+        const map = {
+            unauthorized: "Không được phép truy cập",
+            "method not allowed": "Phương thức không được hỗ trợ",
+            "not found": "Không tìm thấy dữ liệu",
+            "an error occurred": "Đã xảy ra lỗi",
+            "internal server error": "Lỗi máy chủ nội bộ",
+            "server error": "Lỗi máy chủ",
+            "email is required": "Email là bắt buộc",
+            "invalid email format": "Định dạng email không hợp lệ",
+            "email not found": "Email không tồn tại trong hệ thống",
+            "email has expired": "Email đã hết hạn",
+            "message not found": "Không tìm thấy tin nhắn",
+            "polling failed": "Không thể đồng bộ hộp thư",
+            "database connection failed": "Không thể kết nối cơ sở dữ liệu",
+            "invalid json": "Dữ liệu JSON không hợp lệ",
+            "missing required fields": "Thiếu dữ liệu bắt buộc",
+            "email_id required": "Thiếu email_id",
+        };
+        return map[key] || raw;
+    }
+
+    getDisplayName(msg) {
+        const fromName = String(msg?.from_name || "").trim();
+        const fromEmail = String(msg?.from_email || "").trim();
+
+        if (fromName !== "" && fromName !== fromEmail && !/^Em\d+$/i.test(fromName) && !fromName.includes("bounces+")) {
+            return fromName;
+        }
+
+        if (fromEmail.includes("openai.com")) return "OpenAI";
+        if (fromEmail.includes("facebook.com")) return "Facebook";
+        if (fromEmail.includes("google.com")) return "Google";
+
+        const match = fromEmail.match(/^([^@]+)/);
+        if (match) {
+            const local = match[1].split("+")[0];
+            if (local !== "") {
+                return local.charAt(0).toUpperCase() + local.slice(1);
+            }
+        }
+        return fromEmail || "Không rõ";
+    }
+
+    resolveInitialEmail() {
+        const queryEmail = new URLSearchParams(window.location.search).get("email");
+        if (this.isValidEmail(queryEmail)) return this.normalizeEmail(queryEmail);
+
+        const path = window.location.pathname.replace(/\/+$/, "");
+        const base = this.basePath.replace(/\/+$/, "");
+
+        if (!path.includes("@")) return "";
+
+        if (base !== "" && path.startsWith(base)) {
+            const raw = path.slice(base.length).replace(/^\/+/, "");
+            const email = decodeURIComponent(raw);
+            if (email.includes("/") || !this.isValidEmail(email)) return "";
+            return this.normalizeEmail(email);
+        }
+
+        if (base === "") {
+            const raw = path.replace(/^\/+/, "");
+            const email = decodeURIComponent(raw);
+            if (email.includes("/") || !this.isValidEmail(email)) return "";
+            return this.normalizeEmail(email);
+        }
+
+        return "";
+    }
+
+    updateUrl(email) {
+        const encodedEmail = encodeURIComponent(email).replace(/%40/g, "@");
+        const base = this.basePath.replace(/\/+$/, "");
+        const nextPath = `${base}/${encodedEmail}`.replace(/\/{2,}/g, "/");
+        window.history.replaceState({}, "", nextPath);
+    }
+
+    extractBasePath(baseUrl) {
+        const raw = String(baseUrl || "").trim();
+        if (raw === "") return "";
+        if (/^https?:\/\//i.test(raw)) {
+            try {
+                return new URL(raw).pathname.replace(/\/+$/, "");
+            } catch (error) {
+                return "";
+            }
+        }
+        if (!raw.startsWith("/")) return `/${raw}`.replace(/\/+$/, "");
+        return raw.replace(/\/+$/, "");
+    }
+
+    normalizeEmail(value) {
+        return String(value || "").trim().toLowerCase();
+    }
+
+    isValidEmail(value) {
+        const email = this.normalizeEmail(value);
+        if (email === "") return false;
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    escapeHtml(value) {
+        const div = document.createElement("div");
+        div.textContent = String(value ?? "");
         return div.innerHTML;
     }
 }
 
-// Initialize
-document.addEventListener('DOMContentLoaded', () => {
-    window.kaimail = new KaiMail();
+document.addEventListener("DOMContentLoaded", () => {
+    const app = new KaiMailUserPage();
+    app.init();
+    window.kaimail = app;
 });
-

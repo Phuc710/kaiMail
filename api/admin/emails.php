@@ -31,12 +31,12 @@ register_shutdown_function(function () {
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/app.php';
 require_once __DIR__ . '/../../includes/EmailService.php';
-require_once __DIR__ . '/../middleware/ApiSecurity.php';
+require_once __DIR__ . '/../middleware/AdminSecurity.php';
 
 header('Content-Type: application/json; charset=utf-8');
-ApiSecurity::setCorsHeaders();
-ApiSecurity::handlePreflight();
-ApiSecurity::requireAdminOrApiAuth();
+AdminSecurity::setCorsHeaders();
+AdminSecurity::handlePreflight();
+AdminSecurity::requireAdminAuth();
 
 $method = getMethod();
 $db = getDB();

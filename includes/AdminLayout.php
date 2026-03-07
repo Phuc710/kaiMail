@@ -32,9 +32,15 @@ final class AdminLayout
 
     public static function begin(string $title, string $activePage, string $username): void
     {
+        if (!headers_sent()) {
+            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+            header('Pragma: no-cache');
+        }
+
         $safeTitle = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
         $safeUsername = htmlspecialchars($username, ENT_QUOTES, 'UTF-8');
         $baseUrl = htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8');
+        $adminCssHref = htmlspecialchars(self::buildVersionedAssetUrl('/css/admin.css'), ENT_QUOTES, 'UTF-8');
 
         echo <<<HTML
 <!DOCTYPE html>
@@ -48,7 +54,7 @@ final class AdminLayout
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="{$baseUrl}/assets/kaishop_favicon.png">
     <link rel="shortcut icon" type="image/png" href="{$baseUrl}/assets/kaishop_favicon.png">
-    <link rel="stylesheet" href="{$baseUrl}/css/admin.css">
+    <link rel="stylesheet" href="{$adminCssHref}">
 </head>
 <body>
     <div id="toast" class="toast"></div>
@@ -111,7 +117,9 @@ HTML;
     {
         $baseUrl = htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8');
         echo '</main>';
-        echo '<script src="' . $baseUrl . '/js/admin.js"></script>';
+        echo '<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>';
+        $adminJsHref = htmlspecialchars(self::buildVersionedAssetUrl('/js/admin.js'), ENT_QUOTES, 'UTF-8');
+        echo '<script src="' . $adminJsHref . '"></script>';
 
         foreach ($extraScripts as $scriptPath) {
             $scriptPath = trim($scriptPath);
@@ -121,15 +129,38 @@ HTML;
 
             if (str_starts_with($scriptPath, 'http://') || str_starts_with($scriptPath, 'https://')) {
                 $safePath = htmlspecialchars($scriptPath, ENT_QUOTES, 'UTF-8');
-            } elseif (str_starts_with($scriptPath, '/')) {
-                $safePath = $baseUrl . htmlspecialchars($scriptPath, ENT_QUOTES, 'UTF-8');
             } else {
-                $safePath = $baseUrl . '/' . htmlspecialchars($scriptPath, ENT_QUOTES, 'UTF-8');
+                $safePath = htmlspecialchars(self::buildVersionedAssetUrl($scriptPath), ENT_QUOTES, 'UTF-8');
             }
 
             echo '<script src="' . $safePath . '"></script>';
         }
 
         echo '</body></html>';
+    }
+
+    private static function buildVersionedAssetUrl(string $assetPath): string
+    {
+        $assetPath = trim($assetPath);
+        if ($assetPath === '') {
+            return rtrim((string) BASE_URL, '/');
+        }
+
+        if (str_starts_with($assetPath, 'http://') || str_starts_with($assetPath, 'https://')) {
+            return $assetPath;
+        }
+
+        $normalized = str_starts_with($assetPath, '/') ? $assetPath : '/' . $assetPath;
+        $rootDir = dirname(__DIR__);
+        $localPath = $rootDir . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, ltrim($normalized, '/'));
+        $base = rtrim((string) BASE_URL, '/');
+        $url = $base . $normalized;
+
+        if (is_file($localPath)) {
+            $version = (string) (filemtime($localPath) ?: time());
+            return $url . '?v=' . rawurlencode($version);
+        }
+
+        return $url;
     }
 }

@@ -8,16 +8,16 @@
 
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/app.php';
-require_once __DIR__ . '/../middleware/ApiSecurity.php';
+require_once __DIR__ . '/../middleware/AdminSecurity.php';
 
 // Disable caching
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Cache-Control: post-check=0, pre-check=0', false);
 header('Pragma: no-cache');
-ApiSecurity::setCorsHeaders();
-ApiSecurity::handlePreflight();
-ApiSecurity::requireAdminOrApiAuth();
+AdminSecurity::setCorsHeaders();
+AdminSecurity::handlePreflight();
+AdminSecurity::requireAdminAuth();
 
 try {
     $lastCheck = $_GET['last_check'] ?? date('Y-m-d H:i:s');

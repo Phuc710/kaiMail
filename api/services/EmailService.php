@@ -9,13 +9,6 @@ require_once __DIR__ . '/BaseService.php';
 
 class EmailService extends BaseService
 {
-    private PDO $db;
-
-    public function __construct(PDO $db)
-    {
-        $this->db = $db;
-    }
-
     /**
      * All generated emails are permanent (no expiration).
      */

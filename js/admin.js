@@ -28,12 +28,21 @@ class AdminCore {
         return `${this.baseUrl}${normalized}`;
     }
 
+    normalizeAdminAccessKey(rawValue) {
+        const raw = String(rawValue || "").trim();
+        const envPrefix = "ADMIN_ACCESS_KEY=";
+        if (raw.startsWith(envPrefix)) {
+            return raw.slice(envPrefix.length).trim();
+        }
+        return raw;
+    }
+
     getAdminAccessKey() {
-        return (localStorage.getItem(this.adminKeyStorage) || "").trim();
+        return this.normalizeAdminAccessKey(localStorage.getItem(this.adminKeyStorage));
     }
 
     setAdminAccessKey(value) {
-        const normalized = String(value || "").trim();
+        const normalized = this.normalizeAdminAccessKey(value);
         if (!normalized) return;
         localStorage.setItem(this.adminKeyStorage, normalized);
     }
@@ -122,10 +131,32 @@ class AdminCore {
     }
 
     showToast(message, type = "") {
+        const localizedMessage = this.localizeApiError(message);
+        const swal = window.Swal;
+        if (swal && typeof swal.fire === "function") {
+            const iconMap = {
+                success: "success",
+                error: "error",
+                warning: "warning",
+                info: "info",
+            };
+
+            swal.fire({
+                toast: true,
+                position: "top-end",
+                icon: iconMap[type] || "info",
+                title: localizedMessage,
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true,
+            });
+            return;
+        }
+
         const toast = document.getElementById("toast");
         if (!toast) return;
 
-        toast.textContent = this.localizeApiError(message);
+        toast.textContent = localizedMessage;
         toast.className = `toast show ${type}`.trim();
 
         if (this.toastTimer) {
@@ -135,6 +166,31 @@ class AdminCore {
         this.toastTimer = setTimeout(() => {
             toast.className = "toast";
         }, 3000);
+    }
+
+    async confirmAction({
+        title = "Xác nhận thao tác",
+        text = "Bạn có chắc muốn tiếp tục?",
+        confirmButtonText = "Xác nhận",
+        cancelButtonText = "Hủy",
+        icon = "warning",
+    } = {}) {
+        const swal = window.Swal;
+        if (swal && typeof swal.fire === "function") {
+            const result = await swal.fire({
+                title,
+                text,
+                icon,
+                showCancelButton: true,
+                confirmButtonText,
+                cancelButtonText,
+                reverseButtons: true,
+                focusCancel: true,
+            });
+            return Boolean(result.isConfirmed);
+        }
+
+        return window.confirm(text || title);
     }
 
     localizeApiError(message) {
@@ -526,9 +582,13 @@ class AdminCore {
     async deleteDomain(id, domainName = "") {
         if (!id) return;
 
-        const confirmed = window.confirm(
-            `Bạn có chắc muốn xóa domain "${domainName}"?\nChỉ xóa được domain chưa có email.`
-        );
+        const confirmed = await this.confirmAction({
+            title: "Xác nhận xóa domain",
+            text: `Bạn có chắc muốn xóa domain "${domainName}"? Chỉ xóa được domain chưa có email.`,
+            confirmButtonText: "Xóa domain",
+            cancelButtonText: "Hủy",
+            icon: "warning",
+        });
         if (!confirmed) return;
 
         try {
@@ -580,3 +640,4 @@ document.addEventListener("DOMContentLoaded", async () => {
     await core.init();
     window.dispatchEvent(new CustomEvent("admin-core-ready"));
 });
+

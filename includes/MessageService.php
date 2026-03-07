@@ -38,9 +38,10 @@ class MessageService
     /**
      * Get messages list for an email ID
      */
-    public static function getMessagesByEmailId(int $emailId, int $limit = 100)
+    public static function getMessagesByEmailId(int $emailId, int $limit = 30)
     {
         $db = getDB();
+        $safeLimit = max(1, min($limit, 100));
 
         $stmt = $db->prepare("
             SELECT id, from_email, from_name, subject, is_read, received_at,
@@ -53,7 +54,7 @@ class MessageService
         ");
         // Bind limit as integer for PDO consistency in some drivers (though execute array works usually)
         $stmt->bindValue(1, $emailId, PDO::PARAM_INT);
-        $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+        $stmt->bindValue(2, $safeLimit, PDO::PARAM_INT);
         $stmt->execute();
 
         return $stmt->fetchAll();

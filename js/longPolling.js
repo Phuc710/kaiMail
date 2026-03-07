@@ -1,316 +1,261 @@
 /**
- * Production-Grade Long Polling Manager
- * Clean, optimized for real-time inbox updates
- * KaiMail - Temp Mail System
+ * KaiMail Long Polling Manager (clean OOP)
+ * - Polls /api/poll.php with GET query params.
+ * - Handles retry/backoff and pause/resume by visibility/network state.
  */
 
 class LongPollingManager {
     constructor(config = {}) {
-        // Core state
-        this.emailId = null;
-        this.lastCheck = null;
+        this.basePath = this.normalizeBasePath(config.basePath || "");
+        this.pollEndpoint = String(config.pollEndpoint || "/api/poll.php");
+        this.webToken = String(config.webToken || "").trim();
+
+        this.maxRetries = Number(config.maxRetries || 12);
+        this.baseRetryDelay = Number(config.baseRetryDelay || 1000);
+        this.maxRetryDelay = Number(config.maxRetryDelay || 30000);
+        this.requestTimeout = Number(config.requestTimeout || 35000);
+        this.loopDelay = Number(config.loopDelay || 120);
+
+        this.onNewMessages = typeof config.onNewMessages === "function" ? config.onNewMessages : () => {};
+        this.onError = typeof config.onError === "function" ? config.onError : () => {};
+        this.onStatusChange = typeof config.onStatusChange === "function" ? config.onStatusChange : () => {};
+
+        this.emailId = 0;
+        this.lastCheck = "";
+
         this.isActive = false;
         this.isPaused = false;
+        this.retryCount = 0;
+        this.consecutiveFailures = 0;
 
-        // Connection management
         this.abortController = null;
         this.pollTimeout = null;
 
-        // Retry & backoff strategy
-        this.retryCount = 0;
-        this.consecutiveFailures = 0;
-        this.maxRetries = config.maxRetries || 15;
-        this.baseRetryDelay = config.baseRetryDelay || 1000; // Start with 1s
-        this.maxRetryDelay = config.maxRetryDelay || 30000; // Max 30s
+        this.boundVisibilityHandler = () => this.handleVisibilityChange();
+        this.boundOnlineHandler = () => this.handleOnline();
+        this.boundOfflineHandler = () => this.handleOffline();
+        this.boundBeforeUnload = () => this.destroy();
 
-        // Performance tuning
-        this.longPollTimeout = config.longPollTimeout || 30000; // Server waits 30s
-        this.requestTimeout = config.requestTimeout || 35000; // Total timeout 35s
-
-        // Callbacks
-        this.onNewMessages = config.onNewMessages || (() => {});
-        this.onError = config.onError || (() => {});
-        this.onStatusChange = config.onStatusChange || (() => {});
-
-        // API Configuration
-        this.basePath = config.basePath || '';
-        this.pollEndpoint = config.pollEndpoint || '/api/poll.php';
-        this.vnTimeZone = 'Asia/Ho_Chi_Minh';
-
-        // Event listeners setup
-        this._setupEventListeners();
+        this.bindEvents();
     }
 
-    /**
-     * Setup browser event listeners
-     */
-    _setupEventListeners() {
-        // Page visibility for smart pause/resume
-        document.addEventListener('visibilitychange', () => this._handleVisibilityChange());
-
-        // Network status monitoring
-        window.addEventListener('online', () => this._handleOnline());
-        window.addEventListener('offline', () => this._handleOffline());
-
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', () => this.destroy());
+    normalizeBasePath(value) {
+        return String(value || "").trim().replace(/\/+$/, "");
     }
 
-    /**
-     * Start long polling
-     */
-    start(emailId, lastCheck = null) {
-        if (!emailId) {
-            console.error('[LongPolling] No email ID provided');
-            return;
-        }
+    bindEvents() {
+        document.addEventListener("visibilitychange", this.boundVisibilityHandler);
+        window.addEventListener("online", this.boundOnlineHandler);
+        window.addEventListener("offline", this.boundOfflineHandler);
+        window.addEventListener("beforeunload", this.boundBeforeUnload);
+    }
 
-        // Stop existing polling if active
-        if (this.isActive) {
-            this.stop();
-        }
+    unbindEvents() {
+        document.removeEventListener("visibilitychange", this.boundVisibilityHandler);
+        window.removeEventListener("online", this.boundOnlineHandler);
+        window.removeEventListener("offline", this.boundOfflineHandler);
+        window.removeEventListener("beforeunload", this.boundBeforeUnload);
+    }
 
-        this.emailId = emailId;
-        this.lastCheck = lastCheck || this._getCurrentTimestamp();
+    start(emailId, lastCheck = "") {
+        const normalizedEmailId = Number(emailId || 0);
+        if (normalizedEmailId < 1) return;
+
+        if (this.isActive) this.stop();
+
+        this.emailId = normalizedEmailId;
+        this.lastCheck = String(lastCheck || "").trim();
         this.isActive = true;
         this.isPaused = false;
         this.retryCount = 0;
         this.consecutiveFailures = 0;
 
-        console.log(`[LongPolling] Started for email ID: ${emailId}`);
-        this._updateStatus('active');
-        this._poll();
+        this.updateStatus("active");
+        this.poll();
     }
 
-    /**
-     * Stop long polling completely
-     */
     stop() {
         this.isActive = false;
         this.isPaused = false;
+        this.retryCount = 0;
+        this.consecutiveFailures = 0;
 
-        // Abort ongoing request
-        if (this.abortController) {
-            this.abortController.abort();
-            this.abortController = null;
-        }
-
-        this._clearTimeouts();
-        console.log('[LongPolling] Stopped');
-        this._updateStatus('stopped');
+        this.abortRequest();
+        this.clearTimers();
+        this.updateStatus("stopped");
     }
 
-    /**
-     * Pause polling (can be resumed without restart)
-     */
     pause() {
-        if (!this.isActive) return;
-
+        if (!this.isActive || this.isPaused) return;
         this.isPaused = true;
-        if (this.abortController) {
-            this.abortController.abort();
-            this.abortController = null;
-        }
-        this._clearTimeouts();
-        console.log('[LongPolling] Paused');
-        this._updateStatus('paused');
+
+        this.abortRequest();
+        this.clearTimers();
+        this.updateStatus("paused");
     }
 
-    /**
-     * Resume paused polling
-     */
     resume() {
         if (!this.isActive || !this.isPaused) return;
-
         this.isPaused = false;
-        console.log('[LongPolling] Resumed');
-        this._updateStatus('active');
-        this._poll();
+        this.updateStatus("active");
+        this.poll();
     }
 
-    /**
-     * Update the lastCheck timestamp (called after loading new messages)
-     */
     updateLastCheck(timestamp) {
-        this.lastCheck = timestamp;
-    }
-
-    /**
-     * Main polling loop - the heart of the system
-     */
-    async _poll() {
-        if (!this.isActive || this.isPaused) return;
-
-        // Create abort controller for this request
-        this.abortController = new AbortController();
-
-        try {
-            const pollUrl = `${this.basePath}${this.pollEndpoint}`;
-            
-            const response = await fetch(pollUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    email_id: this.emailId,
-                    last_check: this.lastCheck,
-                    timeout: this.longPollTimeout / 1000 // Convert to seconds
-                }),
-                signal: this.abortController.signal,
-                timeout: this.requestTimeout
-            });
-
-            // Reset consecutive failures on successful request
-            this.consecutiveFailures = 0;
-            this.retryCount = 0;
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-
-            const data = await response.json();
-
-            if (data.messages && data.messages.length > 0) {
-                // New messages found!
-                const count = data.messages.length;
-                this.onNewMessages(data.messages, count);
-                
-                // Update last check timestamp
-                if (data.server_time) {
-                    this.lastCheck = data.server_time;
-                }
-            }
-
-            // Continue polling
-            this._schedule();
-
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                // Request was cancelled, this is normal
-                return;
-            }
-
-            // Network or server error
-            this.consecutiveFailures++;
-            this.retryCount++;
-
-            if (this.retryCount <= this.maxRetries) {
-                // Calculate exponential backoff
-                const delay = Math.min(
-                    this.baseRetryDelay * Math.pow(2, Math.min(this.consecutiveFailures - 1, 4)),
-                    this.maxRetryDelay
-                );
-
-                console.warn(`[LongPolling] Error (attempt ${this.retryCount}/${this.maxRetries}):`, error.message, `- Retry in ${delay}ms`);
-                this.onError(error, this.retryCount);
-                this._updateStatus('reconnecting');
-
-                // Schedule retry
-                this.pollTimeout = setTimeout(() => {
-                    if (this.isActive && !this.isPaused) {
-                        this._poll();
-                    }
-                }, delay);
-            } else {
-                // Max retries exceeded
-                console.error('[LongPolling] Max retries exceeded');
-                this.onError(error, this.retryCount);
-                this._updateStatus('failed');
-                this.stop();
-            }
+        const normalized = String(timestamp || "").trim();
+        if (normalized !== "") {
+            this.lastCheck = normalized;
         }
     }
 
-    /**
-     * Schedule next poll immediately
-     */
-    _schedule() {
-        if (!this.isActive || this.isPaused) return;
-
-        // Small delay to avoid hammering the server
-        this.pollTimeout = setTimeout(() => {
-            if (this.isActive && !this.isPaused) {
-                this._poll();
-            }
-        }, 100);
+    destroy() {
+        this.stop();
+        this.unbindEvents();
     }
 
-    /**
-     * Handle page visibility change
-     */
-    _handleVisibilityChange() {
+    handleVisibilityChange() {
+        if (!this.isActive) return;
         if (document.hidden) {
-            // Page is hidden
             this.pause();
-        } else {
-            // Page is visible again
-            if (this.isActive) {
-                this.resume();
-            }
+            return;
         }
+        this.resume();
     }
 
-    /**
-     * Handle online event
-     */
-    _handleOnline() {
-        console.log('[LongPolling] Connection restored');
+    handleOnline() {
         if (this.isActive && this.isPaused) {
             this.resume();
         }
     }
 
-    /**
-     * Handle offline event
-     */
-    _handleOffline() {
-        console.log('[LongPolling] Connection lost');
-        this.pause();
+    handleOffline() {
+        if (this.isActive) {
+            this.pause();
+        }
     }
 
-    /**
-     * Update status callback
-     */
-    _updateStatus(status) {
+    updateStatus(status) {
         this.onStatusChange(status);
     }
 
-    /**
-     * Clear all timeouts
-     */
-    _clearTimeouts() {
+    abortRequest() {
+        if (this.abortController) {
+            this.abortController.abort();
+            this.abortController = null;
+        }
+    }
+
+    clearTimers() {
         if (this.pollTimeout) {
             clearTimeout(this.pollTimeout);
             this.pollTimeout = null;
         }
     }
 
-    /**
-     * Get current timestamp in MySQL format
-     */
-    _getCurrentTimestamp() {
-        const parts = new Intl.DateTimeFormat('en-GB', {
-            timeZone: this.vnTimeZone,
-            hour12: false,
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-        }).formatToParts(new Date());
+    scheduleNext(delay = this.loopDelay) {
+        if (!this.isActive || this.isPaused) return;
 
-        const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-        return `${map.year}-${map.month}-${map.day} ${map.hour}:${map.minute}:${map.second}`;
+        this.clearTimers();
+        this.pollTimeout = setTimeout(() => {
+            if (this.isActive && !this.isPaused) this.poll();
+        }, Math.max(0, Number(delay || 0)));
     }
 
-    /**
-     * Cleanup on destroy
-     */
-    destroy() {
-        this.stop();
-        this._clearTimeouts();
-        console.log('[LongPolling] Destroyed');
+    buildPollUrl() {
+        const params = new URLSearchParams({
+            email_id: String(this.emailId),
+            last_check: this.lastCheck,
+        });
+        const endpoint = this.pollEndpoint.startsWith("/") ? this.pollEndpoint : `/${this.pollEndpoint}`;
+        return `${this.basePath}${endpoint}?${params.toString()}`;
+    }
+
+    async poll() {
+        if (!this.isActive || this.isPaused) return;
+
+        this.abortController = new AbortController();
+        const controller = this.abortController;
+        let didTimeout = false;
+
+        const timeoutId = setTimeout(() => {
+            didTimeout = true;
+            controller.abort();
+        }, this.requestTimeout);
+
+        try {
+            const headers = { Accept: "application/json" };
+            if (this.webToken !== "") {
+                headers["X-WEB-UI-TOKEN"] = this.webToken;
+            }
+
+            const response = await fetch(this.buildPollUrl(), {
+                method: "GET",
+                signal: controller.signal,
+                headers,
+                credentials: "same-origin",
+                cache: "no-store",
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const payload = await this.readJsonSafe(response);
+            if (!payload) {
+                throw new Error("Invalid JSON payload");
+            }
+
+            this.retryCount = 0;
+            this.consecutiveFailures = 0;
+            this.updateStatus("active");
+
+            const serverLastCheck = String(payload.last_check || payload.server_time || "").trim();
+            if (serverLastCheck !== "") {
+                this.lastCheck = serverLastCheck;
+            }
+
+            const messages = Array.isArray(payload.messages) ? payload.messages : [];
+            if (messages.length > 0) {
+                this.onNewMessages(messages, messages.length, payload);
+            }
+
+            this.scheduleNext(this.loopDelay);
+        } catch (error) {
+            if (error?.name === "AbortError" && !didTimeout) {
+                return;
+            }
+
+            this.retryCount += 1;
+            this.consecutiveFailures += 1;
+            this.onError(error, this.retryCount);
+
+            if (this.retryCount > this.maxRetries) {
+                this.updateStatus("failed");
+                this.stop();
+                return;
+            }
+
+            this.updateStatus("reconnecting");
+            const retryDelay = Math.min(
+                this.baseRetryDelay * Math.pow(2, Math.min(this.consecutiveFailures - 1, 4)),
+                this.maxRetryDelay
+            );
+            this.scheduleNext(retryDelay);
+        } finally {
+            clearTimeout(timeoutId);
+            if (this.abortController === controller) {
+                this.abortController = null;
+            }
+        }
+    }
+
+    async readJsonSafe(response) {
+        try {
+            return await response.json();
+        } catch (error) {
+            return null;
+        }
     }
 }
+
+window.LongPollingManager = LongPollingManager;

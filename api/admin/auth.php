@@ -9,11 +9,11 @@
 
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/app.php';
-require_once __DIR__ . '/../middleware/ApiSecurity.php';
+require_once __DIR__ . '/../middleware/AdminSecurity.php';
 
 header('Content-Type: application/json; charset=utf-8');
-ApiSecurity::setCorsHeaders();
-ApiSecurity::handlePreflight();
+AdminSecurity::setCorsHeaders();
+AdminSecurity::handlePreflight();
 
 $method = getMethod();
 
@@ -43,11 +43,10 @@ if ($method === 'POST') {
 }
 
 if ($method === 'GET') {
-    $isAdminHeader = ApiSecurity::verifyAdminAccessKeyHeader();
-    ApiSecurity::requireAdminOrApiAuth();
+    AdminSecurity::requireAdminAuth();
     jsonResponse([
         'authenticated' => true,
-        'auth_type' => $isAdminHeader ? 'admin_access_key' : 'api_key_secret',
+        'auth_type' => 'admin_access_key',
         'server_time' => date('Y-m-d H:i:s'),
     ]);
 }

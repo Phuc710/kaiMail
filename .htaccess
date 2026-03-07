@@ -1,6 +1,5 @@
 RewriteEngine On
-RewriteBase /
-# /kaiMail/
+RewriteBase /kaiMail/
 
 # Security: Disable directory listing
 Options -Indexes
@@ -33,7 +32,7 @@ RewriteRule ^api/(.*)$ api/index.php [L,QSA]
 
 # Redirect trailing slashes for non-directories
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)/$ /$1 [L,R=301]
+RewriteRule ^(.*)/$ /kaiMail/$1 [L,R=301]
 
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d

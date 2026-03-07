@@ -81,19 +81,6 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
         </div>
     </article>
 
-    <article class="stat-card">
-        <div class="stat-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-            </svg>
-        </div>
-        <div class="stat-info">
-            <span class="stat-value" id="statExpiredEmails">0</span>
-            <span class="stat-label">Email hết hạn</span>
-        </div>
-    </article>
 </section>
 
 <section class="filters">
@@ -128,8 +115,6 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
                 </th>
                 <th>Email</th>
                 <th>Tin nhắn</th>
-                <th>Thời hạn</th>
-                <th>Hết hạn</th>
                 <th>Tạo lúc</th>
                 <th class="col-actions">Thao tác</th>
             </tr>
@@ -195,11 +180,6 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
                             <?php endforeach; ?>
                         <?php endif; ?>
                     </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Thời hạn</label>
-                    <p class="field-note">Tất cả email tạo mới trong admin là loại vĩnh viễn.</p>
                 </div>
 
                 <div class="form-actions">

@@ -59,7 +59,9 @@ CREATE TABLE IF NOT EXISTS messages (
     received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (email_id) REFERENCES emails(id) ON DELETE CASCADE,
     INDEX idx_email_id (email_id),
-    INDEX idx_received (received_at)
+    INDEX idx_received (received_at),
+    INDEX idx_messages_email_received (email_id, received_at),
+    INDEX idx_messages_email_read (email_id, is_read)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================

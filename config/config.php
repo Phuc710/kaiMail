@@ -54,6 +54,7 @@ define('API_SECRET_KEY', envRequired('API_SECRET_KEY'));
 define('API_REQUEST_TTL', max(30, (int) env('API_REQUEST_TTL', 300)));
 define('API_REQUIRE_HTTPS', (bool) env('API_REQUIRE_HTTPS', IS_PRODUCTION));
 define('API_ALLOWED_IPS', trim((string) env('API_ALLOWED_IPS', '')));
+define('API_ALLOW_SESSION_FALLBACK', (bool) env('API_ALLOW_SESSION_FALLBACK', !IS_PRODUCTION));
 define('WEBHOOK_LOG_FILE', dirname(__DIR__) . '/storage/logs/webhook.log');
 define('ADMIN_ACCESS_KEY', envRequired('ADMIN_ACCESS_KEY'));
 define('ADMIN_DEFAULT_ID', 1);
