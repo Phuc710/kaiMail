@@ -28,7 +28,7 @@ mkdir -p "$(dirname "$LOG_FILE")"
     
     # Run git pull
     # We use --ff-only to ensure we don't accidentally create merge commits on server
-    /usr/bin/git pull origin "$BRANCH" --ff-only 2>&1
+    git pull origin "$BRANCH" --ff-only 2>&1
     
     EXIT_CODE=$?
     
