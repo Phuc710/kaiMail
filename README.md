@@ -266,21 +266,6 @@ kaishop@2026
    VALUES ('kaishop.id.vn', 1);
    ```
 
-6. **Setup Cloudflare Worker**
-   - Deploy `cloudflare-worker.js`
-   - Configure email routing
-   - Point webhook to your server
-
-7. **Access**
-   - User: `http://localhost/kaiMail`
-   - Admin: `http://localhost/kaiMail/adminkaishop`
-   - API: `http://localhost/kaiMail/api`
-
-## 🎯 Features
-
-### ✅ Implemented
-
-- ✅ Clean RESTful API
 - ✅ Multiple domain support
 - ✅ Email expiry management
 - ✅ Real-time long polling
