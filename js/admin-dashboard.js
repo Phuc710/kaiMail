@@ -20,7 +20,14 @@ class AdminDashboardPage {
         }
 
         this.bindEvents();
-        this.loadInitialData();
+        this.bootstrap();
+    }
+
+    async bootstrap() {
+        await this.loadInitialData();
+        if (!this.lastCheckTime) {
+            this.lastCheckTime = this.buildCurrentTimestamp();
+        }
         this.startPolling();
     }
 
@@ -66,6 +73,7 @@ class AdminDashboardPage {
         window.addEventListener("beforeunload", () => this.stopPolling());
         document.addEventListener("visibilitychange", () => {
             if (document.hidden) return;
+            this.reloadData();
             if (this.pollingActive && this.pollTimer) {
                 clearTimeout(this.pollTimer);
                 this.pollLoop();
@@ -137,6 +145,10 @@ class AdminDashboardPage {
                 this.renderPagination({ pages: 0 });
                 if (!silent) this.core.showToast("Không thể tải danh sách email", "error");
                 return;
+            }
+
+            if (data.server_time) {
+                this.lastCheckTime = String(data.server_time);
             }
 
             this.renderEmails(Array.isArray(data.emails) ? data.emails : []);

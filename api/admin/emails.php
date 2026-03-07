@@ -109,7 +109,8 @@ try {
             'page' => $page,
             'limit' => $limit,
             'pages' => ceil($total / $limit),
-            'emails' => $emails
+            'emails' => $emails,
+            'server_time' => date('Y-m-d H:i:s')
         ]);
     }
 
