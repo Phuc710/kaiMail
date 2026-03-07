@@ -11,7 +11,7 @@
 # /bin/bash /home/kaishopi/domains/tmail.kaishop.id.vn/public_html/git_deploy.sh
 # ==============================================================================
 
-# Project directory
+# Project directory (Correct for tmail subdomain)
 PROJECT_DIR="/home/kaishopi/domains/tmail.kaishop.id.vn/public_html"
 LOG_FILE="${PROJECT_DIR}/storage/logs/cron_deploy.log"
 BRANCH="main"
