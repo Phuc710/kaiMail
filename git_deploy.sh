@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 
 # ==============================================================================
 #  GIT AUTO-DEPLOY SCRIPT (CRON JOB)
@@ -17,12 +17,12 @@ LOG_FILE="${PROJECT_DIR}/storage/logs/cron_deploy.log"
 BRANCH="main"
 
 # Ensure log directory exists
-mkdir -p "$(dirname "$LOG_FILE")"
+mkdir -p ""
 
 # Execute pull
 {
     echo "------------------------------------------------------------"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting Git Pull..."
+    echo "[] Starting Git Pull..."
     
     cd "$PROJECT_DIR" || { echo "ERROR: Could not change directory to $PROJECT_DIR"; exit 1; }
     
@@ -33,8 +33,8 @@ mkdir -p "$(dirname "$LOG_FILE")"
     EXIT_CODE=$?
     
     if [ $EXIT_CODE -eq 0 ]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Success: Code updated."
+        echo "[] Success: Code updated."
     else
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Error: Git pull failed with exit code $EXIT_CODE."
+        echo "[] Error: Git pull failed with exit code $EXIT_CODE."
     fi
 } >> "$LOG_FILE" 2>&1
