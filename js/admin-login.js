@@ -64,7 +64,7 @@ class AdminAuthApiClient {
 
     async verify(accessKey) {
         if (!accessKey) {
-            return { ok: false, message: "Thiếu khóa truy cập" };
+            return { ok: false, status: 0, message: "Thieu khoa truy cap" };
         }
 
         try {
@@ -76,19 +76,23 @@ class AdminAuthApiClient {
             });
 
             if (response.ok) {
-                return { ok: true, message: "Xác thực thành công" };
+                return { ok: true, status: response.status, message: "Xac thuc thanh cong" };
             }
 
             const data = await this.readJsonSafe(response);
-            return { ok: false, message: String(data?.error || "Khóa truy cập không đúng") };
+            return {
+                ok: false,
+                status: response.status,
+                message: String(data?.message || data?.error || "Khoa truy cap khong dung"),
+            };
         } catch (error) {
-            return { ok: false, message: "Không thể kết nối máy chủ" };
+            return { ok: false, status: 0, message: "Khong the ket noi may chu" };
         }
     }
 
     async login(password) {
         if (!password) {
-            return { ok: false, message: "Vui lòng nhập khóa truy cập" };
+            return { ok: false, status: 0, message: "Vui long nhap khoa truy cap" };
         }
 
         try {
@@ -104,13 +108,14 @@ class AdminAuthApiClient {
             if (!response.ok || !data?.success) {
                 return {
                     ok: false,
-                    message: String(data?.error || "Khóa truy cập không đúng"),
+                    status: response.status,
+                    message: String(data?.message || data?.error || "Khoa truy cap khong dung"),
                 };
             }
 
-            return { ok: true, message: "Đăng nhập thành công" };
+            return { ok: true, status: response.status, message: "Dang nhap thanh cong" };
         } catch (error) {
-            return { ok: false, message: "Không thể kết nối máy chủ" };
+            return { ok: false, status: 0, message: "Khong the ket noi may chu" };
         }
     }
 
@@ -151,7 +156,7 @@ class AdminLoginPageController {
             return;
         }
 
-        this.showStatus("Đang kiểm tra phiên đăng nhập...");
+        this.showStatus("Dang kiem tra phien dang nhap...");
 
         const result = await this.authApi.verify(storedKey);
         if (result.ok) {
@@ -159,7 +164,10 @@ class AdminLoginPageController {
             return;
         }
 
-        this.keyStore.clear();
+        if (result.status === 401) {
+            this.keyStore.clear();
+        }
+
         this.hideStatus();
     }
 
@@ -169,24 +177,38 @@ class AdminLoginPageController {
         const rawPassword = this.passwordInput.value;
         const password = this.keyStore.normalize(rawPassword);
         if (password === "") {
-            this.showError("Vui lòng nhập khóa truy cập");
+            this.showError("Vui long nhap khoa truy cap");
             return;
         }
 
-        this.setLoading(true, "Đang đăng nhập...");
+        this.setLoading(true, "Dang dang nhap...");
         this.hideError();
-        this.showStatus("Đang xác thực với máy chủ...");
+        this.showStatus("Dang xac thuc voi may chu...");
 
-        const result = await this.authApi.login(password);
-        if (result.ok) {
-            this.keyStore.set(password);
+        const loginResult = await this.authApi.login(password);
+        if (!loginResult.ok) {
+            this.setLoading(false, "Dang nhap");
+            this.hideStatus();
+            this.showError(loginResult.message || "Dang nhap that bai");
+            return;
+        }
+
+        this.keyStore.set(password);
+
+        // Re-verify by GET so policy errors (HTTPS/IP/strict mode) are shown immediately.
+        const verifyResult = await this.authApi.verify(password);
+        if (verifyResult.ok) {
             this.redirectToDashboard();
             return;
         }
 
-        this.setLoading(false, "Đăng nhập");
+        if (verifyResult.status === 401) {
+            this.keyStore.clear();
+        }
+
+        this.setLoading(false, "Dang nhap");
         this.hideStatus();
-        this.showError(result.message || "Đăng nhập thất bại");
+        this.showError(verifyResult.message || "Dang nhap that bai");
     }
 
     setLoading(isLoading, label) {
@@ -195,19 +217,21 @@ class AdminLoginPageController {
     }
 
     showError(message) {
-        const text = String(message || "Đã xảy ra lỗi");
+        const text = String(message || "Da xay ra loi");
         const swal = window.Swal;
         if (swal && typeof swal.fire === "function") {
             swal.fire({
                 icon: "error",
-                title: "Đăng nhập thất bại",
+                title: "Dang nhap that bai",
                 text,
-                confirmButtonText: "Đóng",
+                confirmButtonText: "Dong",
             });
             return;
         }
 
-        if (!this.errorMessage) return;
+        if (!this.errorMessage) {
+            return;
+        }
 
         this.errorMessage.textContent = text;
         this.errorMessage.classList.remove("hidden");

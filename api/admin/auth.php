@@ -21,6 +21,7 @@ $method = getMethod();
 
 if ($method === 'POST') {
     AdminSecurity::enforceLoginRateLimit();
+    AdminSecurity::enforceNetworkPolicyOnly();
 
     $data = getJsonInput();
     $password = trim((string) ($data['password'] ?? ''));

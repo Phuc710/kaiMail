@@ -62,6 +62,11 @@ final class AdminSecurity
         self::deny(401, 'Khong hop le hoac thieu X-ADMIN-ACCESS-KEY');
     }
 
+    public static function enforceNetworkPolicyOnly(): void
+    {
+        self::enforceNetworkPolicy();
+    }
+
     public static function verifyAdminAccessKeyHeader(): bool
     {
         $adminAccessKey = self::getHeader('X-ADMIN-ACCESS-KEY');

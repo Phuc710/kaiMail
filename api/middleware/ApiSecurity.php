@@ -5,15 +5,18 @@ require_once __DIR__ . '/RateLimiter.php';
 require_once __DIR__ . '/ReplayGuard.php';
 
 /**
- * Security middleware for external/public API.
+ * Middleware bảo mật cho external/public API.
  *
- * Auth method:
+ * Phương thức xác thực:
  * - X-API-KEY + X-API-TIMESTAMP + X-API-NONCE + X-API-SIGNATURE
  */
 final class ApiSecurity
 {
     private static ?string $rawBody = null;
 
+    /**
+     * Thiết lập các header ngăn chặn lưu cache.
+     */
     public static function setNoCacheHeaders(): void
     {
         header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -21,6 +24,9 @@ final class ApiSecurity
         header('Pragma: no-cache');
     }
 
+    /**
+     * Thiết lập các header CORS.
+     */
     public static function setCorsHeaders(): void
     {
         $baseUrlParts = parse_url(BASE_URL);
@@ -43,6 +49,9 @@ final class ApiSecurity
         header('Access-Control-Max-Age: 600');
     }
 
+    /**
+     * Xử lý yêu cầu preflight OPTIONS.
+     */
     public static function handlePreflight(): void
     {
         if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'OPTIONS') {
@@ -53,39 +62,52 @@ final class ApiSecurity
         exit;
     }
 
+    /**
+     * Yêu cầu xác thực API.
+     */
     public static function requireApiAuth(): void
     {
-        self::enforceNetworkPolicy();
+        // 1. Kiểm tra kết nối cơ bản (Bắt buộc HTTPS trên production)
+        self::enforceBasicConnectivity();
+
+        // 2. Giới hạn tần suất yêu cầu (Áp dụng cho tất cả truy cập)
         self::enforceRateLimit();
 
+        // 3. Web UI Session - Nếu có token hợp lệ từ trình duyệt, cho phép truy cập (Chế độ Public Read-Only)
         if (self::verifyWebUiSessionToken()) {
             return;
         }
 
+        // 4. Chính sách IP - Bỏ qua bước này theo yêu cầu (người dùng đổi IP liên tục)
+        if (API_ENFORCE_IP_POLICY) {
+            self::enforceIpPolicy();
+        }
+
+        // 5. Xác thực External API (Key/Chữ ký)
         $apiKey = self::getHeader('X-API-KEY');
         $timestampHeader = self::getHeader('X-API-TIMESTAMP');
         $nonce = self::getHeader('X-API-NONCE');
         $signature = self::getHeader('X-API-SIGNATURE');
 
         if ($apiKey === '' || $timestampHeader === '' || $signature === '') {
-            self::deny(401, 'Thieu header xac thuc API');
+            self::deny(401, 'Thiếu header xác thực API', 'Unauthorized');
         }
 
         if (!hash_equals((string) API_ACCESS_KEY, $apiKey)) {
-            self::deny(401, 'API key khong hop le');
+            self::deny(401, 'API key không hợp lệ', 'Unauthorized');
         }
 
         $timestamp = (int) $timestampHeader;
         if ($timestamp <= 0) {
-            self::deny(401, 'Timestamp khong hop le');
+            self::deny(401, 'Timestamp không hợp lệ', 'Unauthorized');
         }
 
         if (abs(time() - $timestamp) > API_REQUEST_TTL) {
-            self::deny(401, 'Yeu cau da het thoi gian hop le');
+            self::deny(401, 'Yêu cầu đã hết thời gian hiệu lực', 'Unauthorized');
         }
 
         if (API_REQUIRE_NONCE && $nonce === '') {
-            self::deny(401, 'Thieu X-API-NONCE');
+            self::deny(401, 'Thiếu X-API-NONCE', 'Unauthorized');
         }
 
         $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
@@ -95,29 +117,41 @@ final class ApiSecurity
         $expectedSignature = hash_hmac('sha256', $payload, (string) API_SECRET_KEY);
 
         if (!hash_equals($expectedSignature, $signature)) {
-            self::deny(401, 'Chu ky API khong hop le');
+            self::deny(401, 'Chữ ký API không hợp lệ', 'Unauthorized');
         }
 
         if (API_REQUIRE_NONCE && !ReplayGuard::verifyNonce('api', $nonce, API_NONCE_TTL)) {
-            self::deny(401, 'Nonce da duoc su dung hoac khong hop le');
+            self::deny(401, 'Nonce đã được sử dụng hoặc không hợp lệ', 'Unauthorized');
         }
     }
 
-    private static function enforceNetworkPolicy(): void
+    /**
+     * Kiểm tra các yêu cầu kết nối cơ bản.
+     */
+    private static function enforceBasicConnectivity(): void
     {
         if (API_REQUIRE_HTTPS && !self::isHttpsRequest() && !self::isLocalDevelopmentRequest()) {
-            self::deny(403, 'Bat buoc dung HTTPS');
+            self::deny(403, 'Bắt buộc sử dụng kết nối HTTPS bảo mật', 'Forbidden');
         }
+    }
 
+    /**
+     * Áp dụng chính sách kiểm tra IP.
+     */
+    private static function enforceIpPolicy(): void
+    {
         if (API_STRICT_MODE && !self::isLocalDevelopmentRequest() && trim((string) API_ALLOWED_IPS) === '') {
-            self::deny(403, 'API_STRICT_MODE yeu cau khai bao API_ALLOWED_IPS');
+            self::deny(403, 'API_STRICT_MODE yêu cầu khai báo danh sách API_ALLOWED_IPS', 'Forbidden');
         }
 
         if (!self::isIpAllowed(self::getClientIp())) {
-            self::deny(403, 'IP khong duoc phep');
+            self::deny(403, 'Địa chỉ IP của bạn không được phép truy cập API này', 'Forbidden');
         }
     }
 
+    /**
+     * Áp dụng giới hạn tần suất yêu cầu (Rate Limiting).
+     */
     private static function enforceRateLimit(): void
     {
         $clientIp = self::getClientIp();
@@ -130,10 +164,13 @@ final class ApiSecurity
         header('X-RateLimit-Reset: ' . $limit['reset_at']);
 
         if (!$limit['allowed']) {
-            self::deny(429, 'Too many requests', ['retry_after' => $limit['retry_after']]);
+            self::deny(429, 'Bạn đã gửi quá nhiều yêu cầu, vui lòng đợi một lát', 'RateLimitExceeded', ['retry_after' => $limit['retry_after']]);
         }
     }
 
+    /**
+     * Lấy giá trị header từ request.
+     */
     private static function getHeader(string $name): string
     {
         $normalized = strtoupper(str_replace('-', '_', $name));
@@ -159,6 +196,9 @@ final class ApiSecurity
         return '';
     }
 
+    /**
+     * Xác minh session token từ Web UI.
+     */
     private static function verifyWebUiSessionToken(): bool
     {
         if (!API_ALLOW_SESSION_FALLBACK) {
@@ -184,6 +224,9 @@ final class ApiSecurity
         return hash_equals($sessionToken, $token);
     }
 
+    /**
+     * Khởi tạo session để phục vụ cơ chế fallback.
+     */
     private static function startSessionForFallback(): void
     {
         if (session_status() === PHP_SESSION_ACTIVE) {
@@ -205,10 +248,13 @@ final class ApiSecurity
         ];
 
         session_set_cookie_params($cookieParams);
-        // Read-only session to avoid locking long-poll and inbox requests together.
+        // Mở session ở chế độ chỉ đọc để không khóa luồng polling.
         session_start(['read_and_close' => true]);
     }
 
+    /**
+     * Kiểm tra yêu cầu có qua HTTPS hay không.
+     */
     private static function isHttpsRequest(): bool
     {
         $https = strtolower((string) ($_SERVER['HTTPS'] ?? ''));
@@ -226,6 +272,9 @@ final class ApiSecurity
         return ((string) ($_SERVER['SERVER_PORT'] ?? '')) === '443';
     }
 
+    /**
+     * Kiểm tra yêu cầu từ môi trường máy chủ cục bộ (local).
+     */
     private static function isLocalDevelopmentRequest(): bool
     {
         $appEnv = strtolower((string) (defined('ENVIRONMENT') ? ENVIRONMENT : ''));
@@ -247,6 +296,9 @@ final class ApiSecurity
         return false;
     }
 
+    /**
+     * Lấy địa chỉ IP của khách truy cập.
+     */
     private static function getClientIp(): string
     {
         if (API_TRUST_PROXY_HEADERS) {
@@ -272,6 +324,9 @@ final class ApiSecurity
         return '';
     }
 
+    /**
+     * Kiểm tra IP có nằm trong danh sách được phép.
+     */
     private static function isIpAllowed(string $ip): bool
     {
         if (API_ALLOWED_IPS === '') {
@@ -300,6 +355,9 @@ final class ApiSecurity
         return false;
     }
 
+    /**
+     * Kiểm tra IP có nằm trong dải CIDR.
+     */
     private static function ipInCidr(string $ip, string $cidr): bool
     {
         [$subnet, $maskBits] = array_pad(explode('/', $cidr, 2), 2, null);
@@ -335,6 +393,9 @@ final class ApiSecurity
         return true;
     }
 
+    /**
+     * Lấy dữ liệu raw body của request.
+     */
     private static function getRawBody(): string
     {
         if (self::$rawBody !== null) {
@@ -346,6 +407,9 @@ final class ApiSecurity
         return self::$rawBody;
     }
 
+    /**
+     * Kiểm tra xem request có cùng origin hay không.
+     */
     private static function isSameOriginRequest(): bool
     {
         $baseUrlParts = parse_url(BASE_URL);
@@ -382,12 +446,15 @@ final class ApiSecurity
         return rtrim($refererOrigin, '/') === $allowedOrigin;
     }
 
-    private static function deny(int $statusCode, string $message, array $extra = []): void
+    /**
+     * Trả về phản hồi lỗi 4xx/5xx và kết thúc.
+     */
+    private static function deny(int $statusCode, string $message, string $errorType = 'Unauthorized', array $extra = []): void
     {
         http_response_code($statusCode);
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(array_merge([
-            'error' => 'Unauthorized',
+            'error' => $errorType,
             'message' => $message,
         ], $extra), JSON_UNESCAPED_UNICODE);
         exit;

@@ -12,7 +12,10 @@ class AdminCore {
     }
 
     async init() {
-        await this.ensureAdminUiAuthenticated();
+        const isAuthenticated = await this.ensureAdminUiAuthenticated();
+        if (isAuthenticated === false) {
+            return;
+        }
         this.bindLogout();
         this.bindModalSystem();
         this.bindCreateEmailForm();
@@ -61,13 +64,13 @@ class AdminCore {
 
     async ensureAdminUiAuthenticated() {
         if (!this.isAdminUiPage() || this.isLoginPage()) {
-            return;
+            return true;
         }
 
         const adminKey = this.getAdminAccessKey();
         if (!adminKey) {
             window.location.href = this.buildUrl("/adminkaishop/login");
-            return;
+            return false;
         }
 
         try {
@@ -76,12 +79,29 @@ class AdminCore {
                 headers: { "X-ADMIN-ACCESS-KEY": adminKey },
             });
 
-            if (!response.ok) {
-                this.clearAdminAccessKey();
-                window.location.href = this.buildUrl("/adminkaishop/login");
+            let data = null;
+            try {
+                data = await response.json();
+            } catch (error) {
+                data = null;
             }
+
+            if (!response.ok) {
+                if (response.status === 401) {
+                    this.clearAdminAccessKey();
+                    window.location.href = this.buildUrl("/adminkaishop/login");
+                    return false;
+                }
+
+                const message = data?.message || data?.error || "Khong the xac thuc phien admin";
+                this.showToast(message, "error");
+                return false;
+            }
+
+            return true;
         } catch (error) {
             // Lỗi mạng tạm thời: giữ nguyên trang để người dùng thử lại.
+            return true;
         }
     }
 

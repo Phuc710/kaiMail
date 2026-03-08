@@ -592,6 +592,8 @@ class KaiMailUserPage {
         const key = raw.toLowerCase();
         const map = {
             unauthorized: "Không được phép truy cập",
+            forbidden: "Truy cập bị từ chối",
+            ratelimitexceeded: "Bạn đang thao tác quá nhanh, vui lòng đợi",
             "method not allowed": "Phương thức không được hỗ trợ",
             "not found": "Không tìm thấy dữ liệu",
             "an error occurred": "Đã xảy ra lỗi",

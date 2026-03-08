@@ -58,7 +58,9 @@ define('API_ALLOW_SESSION_FALLBACK', (bool) env('API_ALLOW_SESSION_FALLBACK', !I
 define('API_REQUIRE_NONCE', (bool) env('API_REQUIRE_NONCE', true));
 define('API_NONCE_TTL', max(30, (int) env('API_NONCE_TTL', API_REQUEST_TTL)));
 define('API_RATE_LIMIT_PER_MIN', max(10, (int) env('API_RATE_LIMIT_PER_MIN', 120)));
-define('API_STRICT_MODE', (bool) env('API_STRICT_MODE', IS_PRODUCTION));
+define('API_ENFORCE_IP_POLICY', (bool) env('API_ENFORCE_IP_POLICY', false));
+// Strict mode must be explicitly enabled in .env to avoid accidental production lockout.
+define('API_STRICT_MODE', (bool) env('API_STRICT_MODE', false));
 define('API_TRUST_PROXY_HEADERS', (bool) env('API_TRUST_PROXY_HEADERS', false));
 define('ADMIN_REQUIRE_HTTPS', (bool) env('ADMIN_REQUIRE_HTTPS', IS_PRODUCTION));
 define('ADMIN_ALLOWED_IPS', trim((string) env('ADMIN_ALLOWED_IPS', API_ALLOWED_IPS)));
