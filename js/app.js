@@ -395,7 +395,6 @@ class KaiMailUserPage {
         const unread = Number(msg?.is_read || 0) === 0;
         const sender = this.escapeHtml(this.getDisplayName(msg));
         const subject = this.escapeHtml(String(msg?.subject || "(Không có tiêu đề)"));
-        const preview = this.escapeHtml(this.buildPreviewText(msg?.preview || ""));
         const timeText = this.escapeHtml(this.time.formatRelative(msg?.received_at));
 
         return `
@@ -404,7 +403,6 @@ class KaiMailUserPage {
                 <div class="message-content">
                     <div class="message-sender">${sender}</div>
                     <div class="message-subject">${subject}</div>
-                    <div class="message-preview">${preview}</div>
                 </div>
                 <div class="message-time">${timeText}</div>
             </div>
@@ -447,19 +445,6 @@ class KaiMailUserPage {
         document.body.style.overflow = "";
         this.modalBody.className = "modal-body";
         this.modalBody.textContent = "";
-    }
-
-    buildPreviewText(value) {
-        const raw = String(value || "");
-        if (raw === "") return "";
-        const source = this.looksLikeHtml(raw)
-            ? raw
-                .replace(/<style[\s\S]*?<\/style>/gi, " ")
-                .replace(/<script[\s\S]*?<\/script>/gi, " ")
-                .replace(/<[^>]+>/g, " ")
-                .replace(/&nbsp;/gi, " ")
-            : raw;
-        return source.replace(/\s+/g, " ").trim();
     }
 
     renderMessageBody(data) {
@@ -680,14 +665,17 @@ class KaiMailUserPage {
     getDisplayName(msg) {
         const fromName = String(msg?.from_name || "").trim();
         const fromEmail = String(msg?.from_email || "").trim();
+        const subject = String(msg?.subject || "").trim();
 
-        if (fromName !== "" && fromName !== fromEmail && !/^Em\d+$/i.test(fromName) && !fromName.includes("bounces+")) {
+        if (this.isValidSenderName(fromName, fromEmail)) {
             return fromName;
         }
 
-        if (fromEmail.includes("openai.com")) return "OpenAI";
-        if (fromEmail.includes("facebook.com")) return "Facebook";
-        if (fromEmail.includes("google.com")) return "Google";
+        const detectedFromEmail = this.detectBrandFromEmail(fromEmail);
+        if (detectedFromEmail !== "") return detectedFromEmail;
+
+        const detectedFromSubject = this.detectBrandFromSubject(subject);
+        if (detectedFromSubject !== "") return detectedFromSubject;
 
         const match = fromEmail.match(/^([^@]+)/);
         if (match) {
@@ -697,6 +685,98 @@ class KaiMailUserPage {
             }
         }
         return fromEmail || "Không rõ";
+    }
+
+    isValidSenderName(fromName, fromEmail) {
+        if (fromName === "") return false;
+        if (fromName.toLowerCase() === String(fromEmail || "").toLowerCase()) return false;
+        if (/^em\d+$/i.test(fromName)) return false;
+        if (/(?:^|\b)(?:no-?reply|noreply|bounce|mailer-daemon|notification)(?:\b|$)/i.test(fromName)) return false;
+        return true;
+    }
+
+    detectBrandFromEmail(fromEmail) {
+        const email = String(fromEmail || "").trim().toLowerCase();
+        if (email === "" || !email.includes("@")) return "";
+
+        const host = email.split("@")[1] || "";
+        const brandMap = this.getBrandSignals();
+        for (const brand of brandMap) {
+            if (brand.domains.some((domain) => host === domain || host.endsWith(`.${domain}`))) {
+                return brand.name;
+            }
+        }
+
+        const hostParts = host.split(".").filter(Boolean);
+        if (hostParts.length >= 2) {
+            let root = hostParts[hostParts.length - 2];
+            if (["co", "com", "net", "org", "gov", "edu"].includes(root) && hostParts.length >= 3) {
+                root = hostParts[hostParts.length - 3];
+            }
+            return this.formatBrandName(root);
+        }
+
+        return "";
+    }
+
+    detectBrandFromSubject(subject) {
+        const normalized = String(subject || "").toLowerCase();
+        if (normalized === "") return "";
+
+        const brandMap = this.getBrandSignals();
+        for (const brand of brandMap) {
+            if (brand.keywords.some((keyword) => normalized.includes(keyword))) {
+                return brand.name;
+            }
+        }
+
+        return "";
+    }
+
+    getBrandSignals() {
+        return [
+            { name: "OpenAI", domains: ["openai.com", "chatgpt.com"], keywords: ["openai", "chatgpt"] },
+            { name: "GitHub", domains: ["github.com", "githubapp.com", "githubusercontent.com"], keywords: ["github"] },
+            { name: "Canva", domains: ["canva.com"], keywords: ["canva"] },
+            { name: "Google", domains: ["google.com", "gmail.com", "googlemail.com", "youtube.com"], keywords: ["google", "gmail", "youtube"] },
+            { name: "Facebook", domains: ["facebook.com", "fb.com", "meta.com", "instagram.com"], keywords: ["facebook", "instagram", "meta"] },
+            { name: "Microsoft", domains: ["microsoft.com", "outlook.com", "office.com", "azure.com"], keywords: ["microsoft", "outlook", "office 365", "azure"] },
+            { name: "Apple", domains: ["apple.com", "icloud.com"], keywords: ["apple", "icloud"] },
+            { name: "Amazon", domains: ["amazon.com", "aws.amazon.com"], keywords: ["amazon", "aws"] },
+            { name: "Notion", domains: ["notion.so", "notion.com"], keywords: ["notion"] },
+            { name: "Discord", domains: ["discord.com", "discordapp.com"], keywords: ["discord"] },
+            { name: "LinkedIn", domains: ["linkedin.com"], keywords: ["linkedin"] },
+            { name: "Telegram", domains: ["telegram.org"], keywords: ["telegram"] },
+            { name: "TikTok", domains: ["tiktok.com"], keywords: ["tiktok"] },
+            { name: "Slack", domains: ["slack.com"], keywords: ["slack"] },
+            { name: "Figma", domains: ["figma.com"], keywords: ["figma"] },
+            { name: "Atlassian", domains: ["atlassian.com"], keywords: ["atlassian", "jira", "confluence"] },
+            { name: "Vercel", domains: ["vercel.com"], keywords: ["vercel"] },
+            { name: "Linear", domains: ["linear.app"], keywords: ["linear"] },
+            { name: "Dropbox", domains: ["dropbox.com"], keywords: ["dropbox"] },
+            { name: "PayPal", domains: ["paypal.com"], keywords: ["paypal"] },
+            { name: "Stripe", domains: ["stripe.com"], keywords: ["stripe"] },
+        ];
+    }
+
+    formatBrandName(raw) {
+        const token = String(raw || "").trim().toLowerCase();
+        if (token === "") return "";
+
+        const exact = {
+            openai: "OpenAI",
+            chatgpt: "ChatGPT",
+            github: "GitHub",
+            gitlab: "GitLab",
+            linkedin: "LinkedIn",
+            youtube: "YouTube",
+            tiktok: "TikTok",
+            paypal: "PayPal",
+            iphone: "iPhone",
+            icloud: "iCloud",
+        };
+        if (exact[token]) return exact[token];
+        return token.charAt(0).toUpperCase() + token.slice(1);
     }
 
     resolveInitialEmail() {

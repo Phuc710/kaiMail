@@ -39,7 +39,7 @@ $webUiToken = (string) $_SESSION['kaimail_web_ui_token'];
 // Release session lock early to keep API requests responsive.
 if (session_status() === PHP_SESSION_ACTIVE) {
     session_write_close();
-}
+}   
 $homeCssVer = @filemtime(__DIR__ . '/css/home.css') ?: time();
 $longPollingVer = @filemtime(__DIR__ . '/js/longPolling.js') ?: time();
 $appJsVer = @filemtime(__DIR__ . '/js/app.js') ?: time();
@@ -47,7 +47,7 @@ $siteUrl = rtrim(BASE_URL, '/');
 $pageUrl = $siteUrl . '/';
 $kaishopUrl = 'https://kaishop.id.vn';
 $telegramBotUrl = 'https://t.me/KaiHub_bot';
-$seoTitle = 'KaiMail - Hệ thống Get Mail thuộc hệ sinh thái KaiShop';
+$seoTitle = 'KaiMail - Dịch vụ Get Mail tạm thời miễn phí | KaiHub';
 $seoDescription = 'KaiMail là hệ thống Get Mail của KaiShop, hỗ trợ nhận email tạm thời theo thời gian thực để lấy OTP, xác minh tài khoản và kiểm tra luồng đăng ký an toàn.';
 $seoKeywords = 'KaiMail, get mail, email tạm thời, hộp thư tạm thời, nhận OTP, KaiShop, KaiHub';
 $seoImage = $siteUrl . '/assets/kaishop_favicon.png';

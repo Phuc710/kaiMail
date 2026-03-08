@@ -131,7 +131,7 @@ body.user-page-body {
 
 .user-main {
     width: 100%;
-    max-width: 1300px;
+    max-width: 1100px;
     margin: 0 auto;
     padding: clamp(18px, 3vw, 40px) clamp(10px, 3.6vw, 56px) clamp(22px, 4.2vw, 56px);
 }
@@ -308,7 +308,7 @@ body.user-page-body {
 }
 
 .messages-list {
-    max-height: clamp(420px, 66vh, 760px);
+    max-height: clamp(600px, 80vh, 1200px);
     overflow-y: auto;
 }
 
@@ -417,6 +417,7 @@ body.user-page-body {
     from {
         transform: rotate(0deg);
     }
+
     to {
         transform: rotate(360deg);
     }
@@ -672,11 +673,17 @@ body.user-page-body {
     }
 
     .message-item {
-        grid-template-columns: 12px 1fr;
+        grid-template-columns: 12px 1fr auto;
+        gap: 8px;
     }
 
     .message-time {
-        display: none;
+        display: block;
+        font-size: 11px;
+        color: #94a3b8;
+        align-self: start;
+        margin-top: 4px;
+        white-space: nowrap;
     }
 
     .empty-state {
