@@ -84,16 +84,51 @@ final class ApiSecurity
             return;
         }
 
-        // 4. External API: yêu cầu cả X-API-KEY và X-API-SECRET hợp lệ
+        // 4. External API: xác thực bằng Chữ ký số (HMAC Signature)
         $apiKey = self::getHeader('X-API-KEY');
-        $apiSecret = self::getHeader('X-API-SECRET');
+        $timestampHeader = self::getHeader('X-API-TIMESTAMP');
+        $nonce = self::getHeader('X-API-NONCE');
+        $signature = self::getHeader('X-API-SIGNATURE');
 
-        if ($apiKey === '' || $apiSecret === '') {
-            self::deny(401, 'Thiếu header xác thực API', 'Unauthorized');
+        if ($apiKey === '' || $timestampHeader === '' || $signature === '') {
+            self::deny(401, 'Thiếu header xác thực API (Key, Timestamp hoặc Signature)', 'Unauthorized');
         }
 
-        if (!hash_equals((string) API_ACCESS_KEY, $apiKey) || !hash_equals((string) API_SECRET_KEY, $apiSecret)) {
-            self::deny(401, 'Thông tin xác thực API không hợp lệ', 'Unauthorized');
+        if (!hash_equals((string) API_ACCESS_KEY, $apiKey)) {
+            self::deny(401, 'API key không hợp lệ', 'Unauthorized');
+        }
+
+        $timestamp = (int) $timestampHeader;
+        if ($timestamp <= 0) {
+            self::deny(401, 'Timestamp không hợp lệ', 'Unauthorized');
+        }
+
+        // Kiểm tra thời gian hiệu lực (TTL)
+        if (abs(time() - $timestamp) > (defined('API_REQUEST_TTL') ? (int) API_REQUEST_TTL : 300)) {
+            self::deny(401, 'Yêu cầu đã hết thời gian hiệu lực (Timestamp quá lệch)', 'Unauthorized');
+        }
+
+        // Tính toán chữ ký mong đợi
+        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+        $path = (string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
+        $payloadHash = hash('sha256', self::getRawBody());
+
+        // Payload = METHOD + \n + PATH + \n + TIMESTAMP + \n + NONCE + \n + BODY_HASH
+        $payload = $method . "\n" . $path . "\n" . $timestamp . "\n" . $nonce . "\n" . $payloadHash;
+        $expectedSignature = hash_hmac('sha256', $payload, (string) API_SECRET_KEY);
+
+        if (!hash_equals($expectedSignature, $signature)) {
+            self::deny(401, 'Chữ ký API không hợp lệ', 'Unauthorized');
+        }
+
+        // Xác minh Nonce (chống Replay Attack)
+        if (defined('API_REQUIRE_NONCE') && API_REQUIRE_NONCE) {
+            if ($nonce === '') {
+                self::deny(401, 'Thiếu X-API-NONCE', 'Unauthorized');
+            }
+            if (!ReplayGuard::verifyNonce('api', $nonce, (defined('API_NONCE_TTL') ? (int) API_NONCE_TTL : 300))) {
+                self::deny(401, 'Nonce đã được sử dụng hoặc không hợp lệ', 'Unauthorized');
+            }
         }
     }
 
@@ -107,19 +142,6 @@ final class ApiSecurity
         }
     }
 
-    /**
-     * Áp dụng chính sách kiểm tra IP.
-     */
-    private static function enforceIpPolicy(): void
-    {
-        if (API_STRICT_MODE && !self::isLocalDevelopmentRequest() && trim((string) API_ALLOWED_IPS) === '') {
-            self::deny(403, 'API_STRICT_MODE yêu cầu khai báo danh sách API_ALLOWED_IPS', 'Forbidden');
-        }
-
-        if (!self::isIpAllowed(self::getClientIp())) {
-            self::deny(403, 'Địa chỉ IP của bạn không được phép truy cập API này', 'Forbidden');
-        }
-    }
 
     /**
      * Áp dụng giới hạn tần suất yêu cầu (Rate Limiting).
@@ -296,74 +318,6 @@ final class ApiSecurity
         return '';
     }
 
-    /**
-     * Kiểm tra IP có nằm trong danh sách được phép.
-     */
-    private static function isIpAllowed(string $ip): bool
-    {
-        if (API_ALLOWED_IPS === '') {
-            return true;
-        }
-
-        if ($ip === '') {
-            return false;
-        }
-
-        $entries = array_filter(array_map('trim', explode(',', API_ALLOWED_IPS)));
-        if (empty($entries)) {
-            return true;
-        }
-
-        foreach ($entries as $entry) {
-            if ($entry === $ip) {
-                return true;
-            }
-
-            if (str_contains($entry, '/') && self::ipInCidr($ip, $entry)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Kiểm tra IP có nằm trong dải CIDR.
-     */
-    private static function ipInCidr(string $ip, string $cidr): bool
-    {
-        [$subnet, $maskBits] = array_pad(explode('/', $cidr, 2), 2, null);
-        if ($subnet === null || $maskBits === null) {
-            return false;
-        }
-
-        $ipBin = @inet_pton($ip);
-        $subnetBin = @inet_pton($subnet);
-        $maskBits = (int) $maskBits;
-
-        if ($ipBin === false || $subnetBin === false || strlen($ipBin) !== strlen($subnetBin)) {
-            return false;
-        }
-
-        $bytesCount = strlen($ipBin);
-        $fullBytes = intdiv($maskBits, 8);
-        $remainingBits = $maskBits % 8;
-
-        for ($i = 0; $i < $fullBytes; $i++) {
-            if ($ipBin[$i] !== $subnetBin[$i]) {
-                return false;
-            }
-        }
-
-        if ($remainingBits > 0 && $fullBytes < $bytesCount) {
-            $mask = (~((1 << (8 - $remainingBits)) - 1)) & 0xFF;
-            if ((ord($ipBin[$fullBytes]) & $mask) !== (ord($subnetBin[$fullBytes]) & $mask)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
 
     /**
      * Lấy dữ liệu raw body của request.

@@ -4,49 +4,47 @@
 
 ## Biến môi trường (`.env`)
 
-### Ứng dụng
-
-| Biến | Mô tả | Production |
-|---|---|---|
-| `APP_ENV` | Môi trường | `production` |
-| `APP_BASE_URL` | URL chính thức | `https://tmail.kaishop.id.vn` |
-| `APP_TIMEZONE` | Múi giờ | `Asia/Ho_Chi_Minh` |
-
-### Cơ sở dữ liệu
+### API & Bảo mật (Cực kỳ quan trọng)
 
 | Biến | Mô tả |
 |---|---|
-| `DB_HOST` | Host MySQL |
-| `DB_NAME` | Tên database |
-| `DB_USER` | Tên user |
-| `DB_PASS` | Mật khẩu |
+| `API_ACCESS_KEY` | Khóa API công khai (Gửi qua header `X-API-KEY`) |
+| `API_SECRET_KEY` | **Khóa Bí mật dùng để ký Signature** (Không bao giờ gửi key này đi) |
+| `API_REQUEST_TTL` | Thời gian hiệu lực của yêu cầu (giây) - Mặc định: `300` |
+| `API_REQUIRE_NONCE` | Bắt buộc dùng `X-API-NONCE` để chống Replay Attack | `true` |
+| `API_NONCE_TTL` | Thời gian lưu trữ Nonce (giây) | `300` |
 
-### API & Bảo mật
+### Quản trị & Webhook
 
-| Biến | Mô tả | Giá trị |
-|---|---|---|
-| `API_ACCESS_KEY` | **Khóa API (X-API-KEY)** | Chuỗi ngẫu nhiên 64 ký tự |
-| `API_SECRET_KEY` | **Khóa Bí mật (X-API-SECRET)** | Chuỗi ngẫu nhiên 64 ký tự |
-| `ADMIN_ACCESS_KEY` | Mật khẩu đăng nhập admin | Chuỗi ngẫu nhiên mạnh |
-| `WEBHOOK_SECRET` | Secret xác thực webhook nhận thư | Chuỗi ngẫu nhiên mạnh |
-| `API_REQUIRE_HTTPS` | Bắt buộc HTTPS | `true` |
-| `API_TRUST_PROXY_HEADERS` | Tin tưởng Cloudflare/proxy | `true` nếu dùng Cloudflare |
-| `API_RATE_LIMIT_PER_MIN` | Giới hạn request/phút | `120` |
-
-### Session
-
-| Biến | Production |
+| Biến | Mô tả |
 |---|---|
-| `SESSION_COOKIE_SECURE` | `true` |
-| `SESSION_COOKIE_SAMESITE` | `Lax` |
+| `ADMIN_ACCESS_KEY` | Mật khẩu đăng nhập Admin Panel |
+| `WEBHOOK_SECRET` | Khóa để xác thực dữ liệu từ Cloudflare Worker gửi về |
 
 ---
 
-## Checklist triển khai Production
+## Cấu hình Cloudflare Worker
 
-- [ ] `APP_ENV=production`
-- [ ] `DISPLAY_ERRORS=false`, `EXPOSE_ERROR_DETAILS=false`
-- [ ] Đổi `API_ACCESS_KEY`, `API_SECRET_KEY`, `ADMIN_ACCESS_KEY` sang giá trị mạnh
-- [ ] Bật SSL (Let's Encrypt hoặc Cloudflare Full Strict)
-- [ ] `API_TRUST_PROXY_HEADERS=true` nếu dùng Cloudflare
-- [ ] Thư mục `storage/` có quyền ghi
+Để nhận được mail, bạn cần cấu hình Cloudflare Worker với 2 biến môi trường (Environment Variables):
+
+1. **`WEBHOOK_URL`**: Đường dẫn đến api nhận mail.
+   - Ví dụ: `https://tmail.kaishop.id.vn/api/webhook/receive-email.php`
+2. **`WEBHOOK_SECRET`**: Phải khớp với giá trị `WEBHOOK_SECRET` trong file `.env`.
+
+---
+
+## Checklist bảo mật cho Bot
+
+1. **Không lộ API_SECRET_KEY**: Chỉ để key này tại server của bạn và server bot. Không bao giờ gửi nó qua Header.
+2. **Khớp Timestamp**: Đảm bảo đồng hồ của máy chạy bot khớp với server (Server cho phép lệch tối đa 5 phút).
+3. **Nonce duy nhất**: Mỗi request bot nên tạo một chuỗi ngẫu nhiên mới cho `X-API-NONCE`.
+
+---
+
+## Các bước triển khai Production
+
+- [ ] Import database `csdl.sql`
+- [ ] Cấu hình `.env` chuẩn (đã dọn dẹp ở bước trước)
+- [ ] Deploy Cloudflare Worker và set biến môi trường
+- [ ] Bật Email Routing trên Cloudflare và trỏ vào Worker
+- [ ] Kiểm tra quyền ghi cho thư mục `storage/`
