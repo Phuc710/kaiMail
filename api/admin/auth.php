@@ -1,10 +1,12 @@
 <?php
+declare(strict_types=1);
+
 /**
- * Admin Authentication API (không dùng cookie/session).
+ * Admin Authentication API (stateless).
  *
- * POST   /api/admin/auth.php - Kiểm tra ADMIN_ACCESS_KEY
- * GET    /api/admin/auth.php - Kiểm tra header xác thực hiện tại
- * DELETE /api/admin/auth.php - Đăng xuất logic phía client
+ * POST   /api/admin/auth.php - verify ADMIN_ACCESS_KEY
+ * GET    /api/admin/auth.php - verify current auth header
+ * DELETE /api/admin/auth.php - client-side logical logout
  */
 
 require_once __DIR__ . '/../../config/database.php';
@@ -18,25 +20,29 @@ AdminSecurity::handlePreflight();
 $method = getMethod();
 
 if ($method === 'POST') {
+    AdminSecurity::enforceLoginRateLimit();
+
     $data = getJsonInput();
     $password = trim((string) ($data['password'] ?? ''));
 
-    // Hỗ trợ dán nguyên dòng từ .env: ADMIN_ACCESS_KEY=xxxx
+    // Support pasting full .env line format: ADMIN_ACCESS_KEY=xxxx
     if (str_starts_with($password, 'ADMIN_ACCESS_KEY=')) {
         $password = substr($password, strlen('ADMIN_ACCESS_KEY='));
     }
 
     if ($password === '') {
-        jsonResponse(['error' => 'Khóa truy cập là bắt buộc'], 400);
+        jsonResponse(['error' => 'Access key is required'], 400);
     }
 
     if (!hash_equals((string) ADMIN_ACCESS_KEY, $password)) {
-        jsonResponse(['error' => 'Khóa truy cập không đúng'], 401);
+        // Slow down brute-force attempts slightly.
+        usleep(250000);
+        jsonResponse(['error' => 'Invalid access key'], 401);
     }
 
     jsonResponse([
         'success' => true,
-        'message' => 'Xác thực thành công',
+        'message' => 'Authenticated',
         'auth_type' => 'admin_access_key',
         'server_time' => date('Y-m-d H:i:s'),
     ]);
@@ -54,8 +60,8 @@ if ($method === 'GET') {
 if ($method === 'DELETE') {
     jsonResponse([
         'success' => true,
-        'message' => 'Đã đăng xuất phía client',
+        'message' => 'Logged out on client side',
     ]);
 }
 
-jsonResponse(['error' => 'Method không được hỗ trợ'], 405);
+jsonResponse(['error' => 'Method not allowed'], 405);

@@ -36,7 +36,7 @@ kaiMail/
 │   ├── index.php               # API Router (Clean URLs)
 │   ├── emails.php              # User API - Check email
 │   ├── messages.php            # User API - Get messages
-│   └── poll.php                # Long polling
+│   └── long-poll.php           # Long polling
 │
 ├── adminkaishop/               # Admin Panel
 │   ├── index.php               # Dashboard
@@ -97,8 +97,8 @@ Clean RESTful API router:
 ### 4. Middleware
 
 #### AuthMiddleware
-- Validate `X-API-KEY`, `X-API-SECRET`, `X-API-TIMESTAMP`, `X-API-SIGNATURE`
-- Centralized authentication
+- Validate `X-API-KEY`, `X-API-TIMESTAMP`, `X-API-NONCE`, `X-API-SIGNATURE`
+- Centralized authentication + replay protection + rate limit
 
 ## 📡 API Endpoints
 
@@ -106,9 +106,9 @@ Clean RESTful API router:
 
 **Authentication (required for external/integration API calls)**:
 - `X-API-KEY`
-- `X-API-SECRET`
 - `X-API-TIMESTAMP` (Unix timestamp)
-- `X-API-SIGNATURE` (`HMAC-SHA256(METHOD + "\n" + PATH + "\n" + TIMESTAMP)`)
+- `X-API-NONCE` (random, one-time)
+- `X-API-SIGNATURE` (`HMAC-SHA256(METHOD + "\n" + PATH + "\n" + TIMESTAMP + "\n" + NONCE + "\n" + SHA256(BODY_RAW))`)
 
 #### Create Email
 ```http
@@ -130,7 +130,7 @@ GET /api/emails/{email}/messages
 
 ### User API
 
-All user endpoints are protected by API key/secret headers.
+All user endpoints are protected by signed headers (key + timestamp + nonce + signature).
 
 #### Check Email
 ```http
@@ -149,7 +149,7 @@ GET /api/messages?id=123
 
 #### Long Polling
 ```http
-GET /api/poll?email_id=1&last_check=2026-01-27%2014:00:00
+GET /api/long-poll.php?email_id=1&last_check=2026-01-27%2014:00:00
 ```
 
 ### Admin API
@@ -160,7 +160,7 @@ POST /api/admin/auth.php
 {"password":"<ADMIN_ACCESS_KEY>"}
 ```
 
-#### Auth Check (Key/Secret hoặc Admin Access Key Header)
+#### Auth Check (Admin Access Key Header)
 ```http
 GET /api/admin/auth.php
 ```
@@ -210,20 +210,14 @@ DELETE /api/admin/emails/{id}
 
 ### Authentication Methods
 
-1. **External API calls**: API key + secret + timestamp + HMAC signature headers
+1. **External API calls**: API key + timestamp + nonce + HMAC signature headers
 2. **Admin Web UI**: `ADMIN_ACCESS_KEY` qua header `X-ADMIN-ACCESS-KEY` (không dùng cookie)
-3. **Admin API endpoints**: chấp nhận `X-ADMIN-ACCESS-KEY` hoặc bộ key/secret cho tool ngoài
+3. **Admin API endpoints**: `X-ADMIN-ACCESS-KEY` + rate limit + IP policy
 4. **Webhook endpoint**: `X-WEBHOOK-SECRET` header
 
-### Secret Key
-```
-65a276de438f97d2b4496724e59d18d443168d3d2ed
-```
-
-### Admin Access Key
-```
-kaishop@2026
-```
+### Secret Management
+- Never commit real secrets to source control.
+- Keep all real keys in `.env` only and rotate keys if leaked.
 
 ## 🚀 Deployment
 

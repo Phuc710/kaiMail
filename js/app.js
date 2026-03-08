@@ -180,11 +180,17 @@ class KaiMailUserPage {
             unread: 0,
             renderedIds: new Set(),
             lastCheck: "",
+            cooldowns: {}, // { key: nextAllowedTimestamp }
+            clickStats: {}, // { key: { count: 0, last: 0 } }
         };
 
         this.poller = null;
 
         this.bindDom();
+        // Fixed UI: Always show inbox section from start
+        if (this.inboxSection) {
+            this.inboxSection.classList.remove("hidden");
+        }
     }
 
     bindDom() {
@@ -216,7 +222,6 @@ class KaiMailUserPage {
             this.inboxSection &&
             this.messagesList &&
             this.emptyState &&
-            this.loadingState &&
             this.unreadBadge &&
             this.modal &&
             this.modalSubject &&
@@ -236,7 +241,11 @@ class KaiMailUserPage {
             this.openInboxFromInput();
         });
         this.copyBtn.addEventListener("click", () => this.copyEmail());
-        this.refreshBtn.addEventListener("click", () => this.loadMessages({ manual: true }));
+        this.refreshBtn.addEventListener("click", () => {
+            if (this.checkSpam("refresh")) {
+                this.loadMessages({ manual: true });
+            }
+        });
 
         this.messagesList.addEventListener("click", (event) => {
             const item = event.target.closest(".message-item");
@@ -268,6 +277,7 @@ class KaiMailUserPage {
     }
 
     async openInboxFromInput() {
+        if (!this.checkSpam("get_mail")) return;
         const email = this.normalizeEmail(this.emailInput.value);
         await this.openInbox(email, false);
     }
@@ -327,11 +337,16 @@ class KaiMailUserPage {
             return true;
         } catch (error) {
             this.toast(error?.message || "Không thể tải hộp thư", "error");
+            this.showEmpty(true);
             return false;
         } finally {
             this.state.loading = false;
             this.setRefreshLoading(false);
             this.showLoading(false);
+            // Ensure something is visible if no messages
+            if (this.state.renderedIds.size === 0) {
+                this.showEmpty(true);
+            }
         }
     }
 
@@ -510,7 +525,10 @@ class KaiMailUserPage {
     }
 
     showInbox(show) {
-        this.inboxSection.classList.toggle("hidden", !show);
+        // Section is now fixed, no more hiding
+        if (this.inboxSection) {
+            this.inboxSection.classList.remove("hidden");
+        }
     }
 
     showMessageList(show) {
@@ -522,10 +540,10 @@ class KaiMailUserPage {
     }
 
     showLoading(show) {
-        this.loadingState.classList.toggle("hidden", !show);
-        if (show) {
-            this.showEmpty(false);
-            this.showMessageList(false);
+        // Home page no longer shows a spinner overlay while fetching.
+        // Keep current content visible to avoid visual flicker.
+        if (this.loadingState) {
+            this.loadingState.classList.add("hidden");
         }
     }
 
@@ -676,6 +694,80 @@ class KaiMailUserPage {
         const div = document.createElement("div");
         div.textContent = String(value ?? "");
         return div.innerHTML;
+    }
+
+    checkSpam(key) {
+        const now = Date.now();
+        const nextAllowed = this.state.cooldowns[key] || 0;
+
+        // Still in cooldown lockout?
+        if (now < nextAllowed) {
+            const remaining = Math.ceil((nextAllowed - now) / 1000);
+            this.toast(`Từ từ thôi! Vui lòng đợi ${remaining}s nữa nhé`, "warning");
+            return false;
+        }
+
+        // Track clicks to detect spam
+        const stats = this.state.clickStats[key] || { count: 0, last: 0 };
+        if (now - stats.last > 2500) {
+            stats.count = 0; // Reset after 2.5s of activity
+        }
+        stats.count += 1;
+        stats.last = now;
+        this.state.clickStats[key] = stats;
+
+        // Trigger cooldown if clicking more than 5 times in short window
+        if (stats.count >= 5) {
+            const seconds = 5; // Reduced to 5s as requested
+            this.state.cooldowns[key] = now + seconds * 1000;
+            this.updateButtonCooldownUi(key, seconds);
+            this.toast("Từ từ thôi! Thử lại sau 5s", "error");
+            return false;
+        }
+
+        return true;
+    }
+
+    checkCooldown(key, seconds) {
+        // This is now legacy, using checkSpam instead but keeping for reference if needed
+        return this.checkSpam(key);
+    }
+
+    updateButtonCooldownUi(key, seconds) {
+        let btn = null;
+        let originalHtml = "";
+
+        if (key === "get_mail") {
+            btn = this.getMailBtn;
+            originalHtml = this.defaultGetBtnHtml;
+        } else if (key === "refresh") {
+            btn = this.refreshBtn;
+            originalHtml = btn.innerHTML;
+        }
+
+        if (!btn) return;
+
+        let remaining = seconds;
+        const timer = setInterval(() => {
+            remaining -= 1;
+            if (remaining <= 0) {
+                clearInterval(timer);
+                btn.disabled = false;
+                if (key === "get_mail") {
+                    btn.innerHTML = originalHtml;
+                }
+                return;
+            }
+            btn.disabled = true;
+            if (key === "get_mail") {
+                btn.innerHTML = `<span>Đợi ${remaining}s...</span>`;
+            }
+        }, 1000);
+
+        btn.disabled = true;
+        if (key === "get_mail") {
+            btn.innerHTML = `<span>Đợi ${remaining}s...</span>`;
+        }
     }
 }
 

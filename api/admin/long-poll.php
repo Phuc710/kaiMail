@@ -1,20 +1,17 @@
 <?php
 /**
  * Admin Long Polling API
- * Monitors for new emails or messages system-wide
- * 
- * GET /api/admin/poll.php?last_check=2024-01-01 12:00:00
+ * Monitors for new emails or messages system-wide.
+ *
+ * GET /api/admin/long-poll.php?last_check=2024-01-01 12:00:00
  */
 
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/app.php';
 require_once __DIR__ . '/../middleware/AdminSecurity.php';
 
-// Disable caching
 header('Content-Type: application/json; charset=utf-8');
-header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-header('Cache-Control: post-check=0, pre-check=0', false);
-header('Pragma: no-cache');
+AdminSecurity::setNoCacheHeaders();
 AdminSecurity::setCorsHeaders();
 AdminSecurity::handlePreflight();
 AdminSecurity::requireAdminAuth();
@@ -22,7 +19,6 @@ AdminSecurity::requireAdminAuth();
 try {
     $lastCheck = $_GET['last_check'] ?? date('Y-m-d H:i:s');
 
-    // Safety limit from environment configuration
     $maxTime = LONG_POLL_MAX_SECONDS;
     $sleepSeconds = LONG_POLL_SLEEP_SECONDS;
     $startTime = time();
@@ -35,7 +31,6 @@ try {
     $stmtEmail = $db->prepare($checkEmailsSql);
 
     while (time() - $startTime < $maxTime) {
-        // execute check
         $stmtMsg->execute([$lastCheck]);
         $hasNewMsg = $stmtMsg->fetchColumn();
 
@@ -43,7 +38,6 @@ try {
         $hasNewEmail = $stmtEmail->fetchColumn();
 
         if ($hasNewMsg || $hasNewEmail) {
-            // Return success
             echo json_encode([
                 'has_updates' => true,
                 'has_new' => true,
@@ -54,18 +48,15 @@ try {
             exit;
         }
 
-        // Wait 1 second
         sleep($sleepSeconds);
     }
 
-    // Timeout
     echo json_encode([
         'has_updates' => false,
         'last_check' => date('Y-m-d H:i:s')
     ]);
-
 } catch (Exception $e) {
-    error_log("Admin polling error: " . $e->getMessage());
+    error_log('Admin long polling error: ' . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['error' => 'Polling thất bại']);
+    echo json_encode(['error' => 'Long polling failed']);
 }

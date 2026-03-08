@@ -63,9 +63,10 @@ export default {
 
       // Fallback: if no parts found, use raw body
       if (!textBody && !htmlBody) {
-        const bodyStart = raw.indexOf("\n\n");
-        if (bodyStart !== -1) {
-          textBody = raw.substring(bodyStart + 2).trim();
+        const headerEnd = raw.match(/\r?\n\r?\n/);
+        if (headerEnd) {
+          const bodyStart = raw.indexOf(headerEnd[0]);
+          textBody = raw.substring(bodyStart + headerEnd[0].length).trim();
         }
       }
 
@@ -133,20 +134,28 @@ function extractMimePart(raw, contentType) {
     if (!ctMatch) continue;
     
     const partContentType = ctMatch[1].trim().toLowerCase();
-    if (!partContentType.includes(contentType.toLowerCase())) continue;
+    if (partContentType.includes(contentType.toLowerCase())) {
+      // Get content after headers (after \r\n\r\n or \n\n)
+      const headerEndMatch = part.match(/\r?\n\r?\n/);
+      if (!headerEndMatch) continue;
 
-    // Get content after headers (after \r\n\r\n or \n\n)
-    const headerEndMatch = part.match(/\r?\n\r?\n/);
-    if (!headerEndMatch) continue;
+      let content = part.substring(part.indexOf(headerEndMatch[0]) + headerEndMatch[0].length);
+      
+      // Remove trailing boundary marker if present
+      content = content.replace(/\r?\n--[^\r\n]*$/, '').trim();
 
-    let content = part.substring(part.indexOf(headerEndMatch[0]) + headerEndMatch[0].length);
-    
-    // Remove trailing boundary marker if present
-    content = content.replace(/\r?\n--[^\r\n]*$/, '').trim();
+      // Return RAW content - no decoding here
+      // PHP backend will handle decoding
+      return content;
+    }
 
-    // Return RAW content - no decoding here
-    // PHP backend will handle decoding
-    return content;
+    // Nested multipart: recurse to find target part inside child boundaries.
+    if (partContentType.startsWith("multipart/")) {
+      const nested = extractMimePart(part, contentType);
+      if (nested) {
+        return nested;
+      }
+    }
   }
 
   return "";

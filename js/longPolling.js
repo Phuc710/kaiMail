@@ -1,13 +1,13 @@
 /**
  * KaiMail Long Polling Manager (clean OOP)
- * - Polls /api/poll.php with GET query params.
+ * - Polls /api/long-poll.php with GET query params.
  * - Handles retry/backoff and pause/resume by visibility/network state.
  */
 
 class LongPollingManager {
     constructor(config = {}) {
         this.basePath = this.normalizeBasePath(config.basePath || "");
-        this.pollEndpoint = String(config.pollEndpoint || "/api/poll.php");
+        this.pollEndpoint = String(config.pollEndpoint || "/api/long-poll.php");
         this.webToken = String(config.webToken || "").trim();
 
         this.maxRetries = Number(config.maxRetries || 12);

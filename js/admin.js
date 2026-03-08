@@ -38,17 +38,17 @@ class AdminCore {
     }
 
     getAdminAccessKey() {
-        return this.normalizeAdminAccessKey(localStorage.getItem(this.adminKeyStorage));
+        return this.normalizeAdminAccessKey(sessionStorage.getItem(this.adminKeyStorage));
     }
 
     setAdminAccessKey(value) {
         const normalized = this.normalizeAdminAccessKey(value);
         if (!normalized) return;
-        localStorage.setItem(this.adminKeyStorage, normalized);
+        sessionStorage.setItem(this.adminKeyStorage, normalized);
     }
 
     clearAdminAccessKey() {
-        localStorage.removeItem(this.adminKeyStorage);
+        sessionStorage.removeItem(this.adminKeyStorage);
     }
 
     isLoginPage() {

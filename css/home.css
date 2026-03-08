@@ -374,8 +374,7 @@ body.user-page-body {
     margin-top: 2px;
 }
 
-.empty-state,
-.loading-state {
+.empty-state {
     width: 100%;
     min-height: clamp(300px, 46vh, 500px);
     display: flex;
@@ -406,16 +405,6 @@ body.user-page-body {
     text-align: center;
     color: #94a3b8;
     padding: 24px clamp(8px, 1.6vw, 16px);
-}
-
-.spinner {
-    width: 34px;
-    height: 34px;
-    border: 3px solid #dce8f3;
-    border-top-color: #3b82f6;
-    border-radius: 50%;
-    margin: 0 auto 12px;
-    animation: spin 0.85s linear infinite;
 }
 
 @keyframes spin {
@@ -681,8 +670,7 @@ body.user-page-body {
         display: none;
     }
 
-    .empty-state,
-    .loading-state {
+    .empty-state {
         min-height: 300px;
         padding: 24px 16px;
     }

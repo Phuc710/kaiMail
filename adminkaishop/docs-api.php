@@ -10,7 +10,7 @@ $basePath = rtrim((string) parse_url((string) BASE_URL, PHP_URL_PATH), '/');
 $apiBase = $baseUrl . '/api';
 $emailsPath = ($basePath === '' ? '' : $basePath) . '/api/emails.php';
 $messagesPath = ($basePath === '' ? '' : $basePath) . '/api/messages.php';
-$pollPath = ($basePath === '' ? '' : $basePath) . '/api/poll.php';
+$pollPath = ($basePath === '' ? '' : $basePath) . '/api/long-poll.php';
 
 AdminLayout::begin('Tài liệu API bên ngoài', 'docs-api', $adminName);
 ?>
@@ -28,24 +28,27 @@ AdminLayout::begin('Tài liệu API bên ngoài', 'docs-api', $adminName);
             </article>
             <article class="info-card">
                 <h3>Xác thực</h3>
-                <p>Bắt buộc 4 header: <code>X-API-KEY</code>, <code>X-API-SECRET</code>, <code>X-API-TIMESTAMP</code>, <code>X-API-SIGNATURE</code>.</p>
+                <p>Bắt buộc 4 header: <code>X-API-KEY</code>, <code>X-API-TIMESTAMP</code>, <code>X-API-NONCE</code>, <code>X-API-SIGNATURE</code>.</p>
             </article>
             <article class="info-card">
                 <h3>Lưu ý local</h3>
-                <p>Nếu test trên <code>http://localhost</code> mà bị <code>403</code>, set <code>API_REQUIRE_HTTPS=false</code> trong <code>.env</code>.</p>
+                <p>Request local trên <code>localhost/127.0.0.1</code> vẫn được phép dù <code>API_REQUIRE_HTTPS=true</code>.</p>
             </article>
         </section>
 
         <section style="margin-bottom: 20px;">
             <h2>1) Tạo chữ ký HMAC</h2>
-            <p>Chữ ký tính theo công thức: <code>METHOD + "\n" + PATH + "\n" + TIMESTAMP</code>, key là <code>API_SECRET_KEY</code>.</p>
+            <p>Chữ ký tính theo công thức: <code>METHOD + "\n" + PATH + "\n" + TIMESTAMP + "\n" + NONCE + "\n" + SHA256(BODY_RAW)</code>, key là <code>API_SECRET_KEY</code>.</p>
             <div class="code-box">#!/usr/bin/env bash
 API_KEY="YOUR_API_ACCESS_KEY"
 API_SECRET="YOUR_API_SECRET_KEY"
 TS=$(date +%s)
+NONCE=$(openssl rand -hex 16)
 METHOD="POST"
 PATH="<?= htmlspecialchars($emailsPath, ENT_QUOTES, 'UTF-8') ?>"
-SIG=$(printf "%s\n%s\n%s" "$METHOD" "$PATH" "$TS" | openssl dgst -sha256 -hmac "$API_SECRET" -r | awk '{print $1}')</div>
+BODY='{"domain":"trongnghia.store","name_type":"en","quantity":1}'
+BODY_HASH=$(printf "%s" "$BODY" | openssl dgst -sha256 -r | awk '{print $1}')
+SIG=$(printf "%s\n%s\n%s\n%s\n%s" "$METHOD" "$PATH" "$TS" "$NONCE" "$BODY_HASH" | openssl dgst -sha256 -hmac "$API_SECRET" -r | awk '{print $1}')</div>
         </section>
 
         <section style="margin-bottom: 20px;">
@@ -64,10 +67,10 @@ SIG=$(printf "%s\n%s\n%s" "$METHOD" "$PATH" "$TS" | openssl dgst -sha256 -hmac "
                 <div class="code-box">curl -X POST "<?= htmlspecialchars($baseUrl . '/api/emails.php', ENT_QUOTES, 'UTF-8') ?>" \
   -H "Content-Type: application/json" \
   -H "X-API-KEY: $API_KEY" \
-  -H "X-API-SECRET: $API_SECRET" \
   -H "X-API-TIMESTAMP: $TS" \
+  -H "X-API-NONCE: $NONCE" \
   -H "X-API-SIGNATURE: $SIG" \
-  -d '{"domain":"trongnghia.store","name_type":"en","quantity":1}'</div>
+  -d "$BODY"</div>
             </article>
         </section>
 
@@ -125,7 +128,7 @@ SIG=$(printf "%s\n%s\n%s" "$METHOD" "$PATH" "$TS" | openssl dgst -sha256 -hmac "
             <article class="endpoint-card">
                 <div class="endpoint-header">
                     <span class="method-badge get">GET</span>
-                    <span class="endpoint-url">/api/poll.php?email_id=123&last_check=2026-03-05 19:00:00</span>
+                    <span class="endpoint-url">/api/long-poll.php?email_id=123&last_check=2026-03-05 19:00:00</span>
                 </div>
                 <p class="endpoint-description">Long-poll để lấy mail mới gần realtime.</p>
             </article>
@@ -140,7 +143,7 @@ B4: DELETE /api/messages.php          -> xóa message (ids hoặc delete_all)
 B5: DELETE /api/emails.php            -> xóa mailbox khi dùng xong</div>
             <div class="hint-box">
                 API public và API admin đã tách riêng.
-                - API bạn dùng bên ngoài: <code>/api/*.php</code> + API key/secret.
+                - API bạn dùng bên ngoài: <code>/api/*.php</code> + key + timestamp + nonce + signature.
                 - API dashboard admin: <code>/api/admin/*.php</code> + <code>X-ADMIN-ACCESS-KEY</code>.
             </div>
         </section>

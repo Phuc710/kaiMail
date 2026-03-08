@@ -553,7 +553,7 @@ class AdminDashboardPage {
 
         try {
             const { ok, data } = await this.core.fetchJson(
-                `/api/admin/poll.php?last_check=${encodeURIComponent(currentLastCheck)}`,
+                `/api/admin/long-poll.php?last_check=${encodeURIComponent(currentLastCheck)}`,
                 { signal: controller.signal }
             );
             clearTimeout(timeoutId);

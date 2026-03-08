@@ -11,6 +11,7 @@ require_once __DIR__ . '/../../config/app.php';
 require_once __DIR__ . '/../middleware/AdminSecurity.php';
 
 header('Content-Type: application/json; charset=utf-8');
+AdminSecurity::setNoCacheHeaders();
 AdminSecurity::setCorsHeaders();
 AdminSecurity::handlePreflight();
 AdminSecurity::requireAdminAuth();

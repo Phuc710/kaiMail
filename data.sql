@@ -88,7 +88,7 @@ INSERT IGNORE INTO domains (domain, is_active) VALUES
 
 -- System Settings
 INSERT IGNORE INTO settings (setting_key, setting_value) VALUES 
-('webhook_secret', '65a276de438f97d2b4496724e59d18d443168d3d2ed'),
+('webhook_secret', 'CHANGE_ME_IN_ENV_ONLY'),
 ('default_domain', 'kaishop.id.vn'),
 ('primary_url', 'https://tmail.kaishop.id.vn'),
 ('api_domains', 'kaishop.id.vn,trongnghia.store'),

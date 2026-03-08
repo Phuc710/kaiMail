@@ -1,20 +1,33 @@
 RewriteEngine On
-RewriteBase /
+# RewriteBase / # Removed to be relative to subdirectory or root automatically
+
+# Smart HTTPS Redirect: Only redirect if not on localhost/127.0.0.1
+RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1|::1)(:.*)?$ [NC]
+RewriteCond %{HTTPS} off
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
 # Security: Disable directory listing
 Options -Indexes
 
 # Security: Protect sensitive files
-<FilesMatch "^(database\.sql|\.env|\.git)">
-    Order allow,deny
-    Deny from all
+<FilesMatch "^(?:\.env(?:\..*)?|\.git|data\.sql|database\.sql|composer\.(?:json|lock)|README\.md)$">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "\.(?:sql|log|sh|md)$">
+    Require all denied
 </FilesMatch>
 
 # Security: headers
 <IfModule mod_headers.c>
-    Header set X-Content-Type-Options "nosniff"
-    Header set X-Frame-Options "SAMEORIGIN"
-    Header set X-XSS-Protection "1; mode=block"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    Header always set Cross-Origin-Opener-Policy "same-origin"
+    Header always set Cross-Origin-Resource-Policy "same-origin"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" env=HTTPS
 </IfModule>
 
 # Admin routes - Clean URLs
@@ -38,10 +51,10 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ index.php [L,QSA]
 
-# PHP settings (Optional, depending on server config permissions)
+# PHP settings (Optional)
 <IfModule mod_php.c>
     php_value upload_max_filesize 10M
     php_value post_max_size 10M
     php_value max_execution_time 30
-    php_flag display_errors off
+    # display_errors will be controlled via .env and config/config.php
 </IfModule>

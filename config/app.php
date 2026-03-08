@@ -125,7 +125,10 @@ function getJsonInput(): array
     if ($json_data !== null)
         return $json_data;
 
-    $input = file_get_contents('php://input');
+    $input = (string) ($_SERVER['KAIMAIL_RAW_BODY'] ?? '');
+    if ($input === '') {
+        $input = (string) file_get_contents('php://input');
+    }
     $json_data = json_decode($input, true) ?? [];
     return $json_data;
 }

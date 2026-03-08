@@ -18,7 +18,7 @@ class AdminAccessKeyStore {
     }
 
     get() {
-        return this.normalize(localStorage.getItem(this.storageKey));
+        return this.normalize(sessionStorage.getItem(this.storageKey));
     }
 
     set(value) {
@@ -27,11 +27,11 @@ class AdminAccessKeyStore {
             return;
         }
 
-        localStorage.setItem(this.storageKey, normalized);
+        sessionStorage.setItem(this.storageKey, normalized);
     }
 
     clear() {
-        localStorage.removeItem(this.storageKey);
+        sessionStorage.removeItem(this.storageKey);
     }
 }
 
