@@ -321,8 +321,11 @@ class KaiMailUserPage {
         try {
             const { ok, status, data } = await this.api.fetchMessages(email, limit);
             if (!ok) {
-                if (status === 404) throw new Error("Email không tồn tại trong hệ thống");
-                if (status === 410) throw new Error("Email đã hết hạn");
+                if (status === 404) {
+                    this.toast("email not found", "error");
+                    this.showEmpty(true);
+                    return false;
+                }
                 throw new Error(data?.error || `Không thể tải hộp thư (HTTP ${status || 0})`);
             }
 
@@ -339,7 +342,8 @@ class KaiMailUserPage {
             this.toast(error?.message || "Không thể tải hộp thư", "error");
             this.showEmpty(true);
             return false;
-        } finally {
+        }
+        finally {
             this.state.loading = false;
             this.setRefreshLoading(false);
             this.showLoading(false);
@@ -554,7 +558,7 @@ class KaiMailUserPage {
     setGetMailLoading(loading) {
         this.getMailBtn.disabled = Boolean(loading);
         if (loading) {
-            this.getMailBtn.innerHTML = "<span>Đang mở...</span>";
+            this.getMailBtn.innerHTML = "<span>Đang xem...</span>";
             return;
         }
         this.getMailBtn.innerHTML = this.defaultGetBtnHtml;
@@ -576,7 +580,7 @@ class KaiMailUserPage {
                 icon: iconMap[type] || "info",
                 title: text,
                 showConfirmButton: false,
-                timer: type === "error" ? 4500 : 2500,
+                timer: type === "error" ? 5000 : 2500,
                 timerProgressBar: true,
                 customClass: { popup: "km-toast" },
             });
@@ -600,9 +604,8 @@ class KaiMailUserPage {
             "internal server error": "Lỗi máy chủ nội bộ",
             "server error": "Lỗi máy chủ",
             "email is required": "Email là bắt buộc",
-            "invalid email format": "Định dạng email không hợp lệ",
-            "email not found": "Email không tồn tại trong hệ thống",
-            "email has expired": "Email đã hết hạn",
+            "email not found": "Mail này không tồn tại",
+            "email has expired": "Mail này đã hết hạn",
             "message not found": "Không tìm thấy tin nhắn",
             "polling failed": "Không thể đồng bộ hộp thư",
             "database connection failed": "Không thể kết nối cơ sở dữ liệu",
@@ -610,7 +613,11 @@ class KaiMailUserPage {
             "missing required fields": "Thiếu dữ liệu bắt buộc",
             "email_id required": "Thiếu email_id",
         };
-        return map[key] || raw;
+        const result = map[key] || raw;
+        // fallback for hardcoded strings that might have been passed
+        if (result === raw && key.includes("tồn tại")) return "Mail này không tồn tại";
+        if (result === raw && key.includes("hết hạn")) return "Mail này đã hết hạn";
+        return result;
     }
 
     getDisplayName(msg) {

@@ -64,64 +64,36 @@ final class ApiSecurity
 
     /**
      * Yêu cầu xác thực API.
+     *
+     * Luồng xác thực:
+     * 1. Kiểm tra HTTPS (production)
+     * 2. Rate limiting
+     * 3. Web UI Session (trang chủ public)
+     * 4. X-API-KEY (External API - chỉ cần key là dùng được)
      */
     public static function requireApiAuth(): void
     {
-        // 1. Kiểm tra kết nối cơ bản (Bắt buộc HTTPS trên production)
+        // 1. Bắt buộc HTTPS trên production
         self::enforceBasicConnectivity();
 
-        // 2. Giới hạn tần suất yêu cầu (Áp dụng cho tất cả truy cập)
+        // 2. Giới hạn tần suất (bảo vệ server)
         self::enforceRateLimit();
 
-        // 3. Web UI Session - Nếu có token hợp lệ từ trình duyệt, cho phép truy cập (Chế độ Public Read-Only)
+        // 3. Trang chủ: Web UI Session Token (chỉ đọc)
         if (self::verifyWebUiSessionToken()) {
             return;
         }
 
-        // 4. Chính sách IP - Bỏ qua bước này theo yêu cầu (người dùng đổi IP liên tục)
-        if (API_ENFORCE_IP_POLICY) {
-            self::enforceIpPolicy();
-        }
-
-        // 5. Xác thực External API (Key/Chữ ký)
+        // 4. External API: yêu cầu cả X-API-KEY và X-API-SECRET hợp lệ
         $apiKey = self::getHeader('X-API-KEY');
-        $timestampHeader = self::getHeader('X-API-TIMESTAMP');
-        $nonce = self::getHeader('X-API-NONCE');
-        $signature = self::getHeader('X-API-SIGNATURE');
+        $apiSecret = self::getHeader('X-API-SECRET');
 
-        if ($apiKey === '' || $timestampHeader === '' || $signature === '') {
+        if ($apiKey === '' || $apiSecret === '') {
             self::deny(401, 'Thiếu header xác thực API', 'Unauthorized');
         }
 
-        if (!hash_equals((string) API_ACCESS_KEY, $apiKey)) {
-            self::deny(401, 'API key không hợp lệ', 'Unauthorized');
-        }
-
-        $timestamp = (int) $timestampHeader;
-        if ($timestamp <= 0) {
-            self::deny(401, 'Timestamp không hợp lệ', 'Unauthorized');
-        }
-
-        if (abs(time() - $timestamp) > API_REQUEST_TTL) {
-            self::deny(401, 'Yêu cầu đã hết thời gian hiệu lực', 'Unauthorized');
-        }
-
-        if (API_REQUIRE_NONCE && $nonce === '') {
-            self::deny(401, 'Thiếu X-API-NONCE', 'Unauthorized');
-        }
-
-        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
-        $path = (string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
-        $payloadHash = hash('sha256', self::getRawBody());
-        $payload = $method . "\n" . $path . "\n" . $timestamp . "\n" . $nonce . "\n" . $payloadHash;
-        $expectedSignature = hash_hmac('sha256', $payload, (string) API_SECRET_KEY);
-
-        if (!hash_equals($expectedSignature, $signature)) {
-            self::deny(401, 'Chữ ký API không hợp lệ', 'Unauthorized');
-        }
-
-        if (API_REQUIRE_NONCE && !ReplayGuard::verifyNonce('api', $nonce, API_NONCE_TTL)) {
-            self::deny(401, 'Nonce đã được sử dụng hoặc không hợp lệ', 'Unauthorized');
+        if (!hash_equals((string) API_ACCESS_KEY, $apiKey) || !hash_equals((string) API_SECRET_KEY, $apiSecret)) {
+            self::deny(401, 'Thông tin xác thực API không hợp lệ', 'Unauthorized');
         }
     }
 

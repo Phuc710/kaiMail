@@ -1,33 +1,52 @@
 # Cài đặt & Môi trường
 
-Hướng dẫn cấu hình KaiMail cho production.
+---
 
-## Biến môi trường chính (`.env`)
+## Biến môi trường (`.env`)
 
-| Biến | Mô tả | Đề xuất (Production) |
-|------|-------|----------------------|
-| `APP_ENV` | Môi trường chạy | `production` |
+### Ứng dụng
+
+| Biến | Mô tả | Production |
+|---|---|---|
+| `APP_ENV` | Môi trường | `production` |
 | `APP_BASE_URL` | URL chính thức | `https://tmail.kaishop.id.vn` |
-| `API_REQUIRE_HTTPS` | Bắt buộc HTTPS cho API | `true` |
-| `API_TRUST_PROXY_HEADERS` | Tin cậy `X-Forwarded-*`/`CF-Connecting-IP` | `true` nếu dùng Cloudflare/proxy |
-| `API_ENFORCE_IP_POLICY` | Bật kiểm tra IP cho External API | `false` |
-| `API_STRICT_MODE` | Chế độ strict khi dùng IP policy | `false` nếu không whitelist |
-| `API_ALLOWED_IPS` | Danh sách IP/CIDR được phép | để trống nếu không bật IP policy |
-| `SESSION_COOKIE_SECURE` | Chỉ gửi cookie qua HTTPS | `true` |
+| `APP_TIMEZONE` | Múi giờ | `Asia/Ho_Chi_Minh` |
 
-## Khuyến nghị cho bot/script IP thay đổi
+### Cơ sở dữ liệu
 
-Đặt:
-- `API_ENFORCE_IP_POLICY=false`
-- `API_STRICT_MODE=false`
-- `API_ALLOWED_IPS=`
+| Biến | Mô tả |
+|---|---|
+| `DB_HOST` | Host MySQL |
+| `DB_NAME` | Tên database |
+| `DB_USER` | Tên user |
+| `DB_PASS` | Mật khẩu |
 
-Khi đó External API chỉ dựa vào Signature + TTL + Nonce.
+### API & Bảo mật
 
-## Checklist triển khai
+| Biến | Mô tả | Giá trị |
+|---|---|---|
+| `API_ACCESS_KEY` | **Khóa API (X-API-KEY)** | Chuỗi ngẫu nhiên 64 ký tự |
+| `API_SECRET_KEY` | **Khóa Bí mật (X-API-SECRET)** | Chuỗi ngẫu nhiên 64 ký tự |
+| `ADMIN_ACCESS_KEY` | Mật khẩu đăng nhập admin | Chuỗi ngẫu nhiên mạnh |
+| `WEBHOOK_SECRET` | Secret xác thực webhook nhận thư | Chuỗi ngẫu nhiên mạnh |
+| `API_REQUIRE_HTTPS` | Bắt buộc HTTPS | `true` |
+| `API_TRUST_PROXY_HEADERS` | Tin tưởng Cloudflare/proxy | `true` nếu dùng Cloudflare |
+| `API_RATE_LIMIT_PER_MIN` | Giới hạn request/phút | `120` |
 
-1. Cấu hình SSL hợp lệ (Let's Encrypt hoặc Cloudflare Full Strict).
-2. Kiểm tra `WEBHOOK_SECRET`, `API_ACCESS_KEY`, `API_SECRET_KEY` đã đổi sang giá trị mạnh.
-3. Bật `DISPLAY_ERRORS=false`, `EXPOSE_ERROR_DETAILS=false`.
-4. Đảm bảo thư mục `storage/` có quyền ghi cho cache và log.
-5. Kiểm tra endpoint `/api/admin/auth.php` trả đúng `200/401/403` theo cấu hình bảo mật.
+### Session
+
+| Biến | Production |
+|---|---|
+| `SESSION_COOKIE_SECURE` | `true` |
+| `SESSION_COOKIE_SAMESITE` | `Lax` |
+
+---
+
+## Checklist triển khai Production
+
+- [ ] `APP_ENV=production`
+- [ ] `DISPLAY_ERRORS=false`, `EXPOSE_ERROR_DETAILS=false`
+- [ ] Đổi `API_ACCESS_KEY`, `API_SECRET_KEY`, `ADMIN_ACCESS_KEY` sang giá trị mạnh
+- [ ] Bật SSL (Let's Encrypt hoặc Cloudflare Full Strict)
+- [ ] `API_TRUST_PROXY_HEADERS=true` nếu dùng Cloudflare
+- [ ] Thư mục `storage/` có quyền ghi

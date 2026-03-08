@@ -1,30 +1,35 @@
-# Tài liệu KaiMail - Tổng quan
+# KaiMail - Tài liệu hệ thống
 
-Chào mừng bạn đến với tài liệu chính thức của KaiMail, hệ thống nhận thư tạm thời thời gian thực thuộc hệ sinh thái KaiShop.
+Tài liệu chính thức của **KaiMail**, hệ thống email tạm thời thuộc hệ sinh thái KaiShop.
 
-## Tầm nhìn dự án
-KaiMail cung cấp nền tảng cho người dùng truy cập các hộp thư tạm thời để:
-- Nhận mã OTP (mật khẩu một lần).
-- Xác minh tài khoản.
-- Kiểm tra các luồng đăng ký an toàn.
+---
 
-## Vai trò giao diện
+## Tổng quan kiến trúc
 
-| Thành phần | Đường dẫn URL | Quyền truy cập | Trách nhiệm |
-|------------|---------------|----------------|-------------|
-| **Cổng thông tin công cộng** | `/` | Công cộng (Public) | Trang chủ để người dùng nhập email và đọc tin nhắn đến. |
-| **Bảng điều khiển Admin** | `/adminkaishop` | Riêng tư (Chủ sở hữu) | Quản lý domain, email, tin nhắn và cấu hình hệ thống. |
-| **External API** | `/api/*` | Riêng tư (Chủ sở hữu) | API tích hợp cho bot/script bên ngoài, xác thực bằng chữ ký HMAC. |
+KaiMail hoạt động theo mô hình phân quyền rõ ràng:
 
-## Mục lục tài liệu
+| Thành phần | URL | Ai dùng | Vai trò |
+|---|---|---|---|
+| **Trang chủ** | `/` | Khách hàng | Xem hòm thư và lấy OTP (chỉ đọc) |
+| **Admin Panel** | `/adminkaishop` | Chủ sở hữu | Tạo/quản lý domain, email, tin nhắn |
+| **External API** | `/api/*` | Bot/Script của chủ | Tạo email, webhook nhận thư, tích hợp |
 
-- [Kiến trúc & Luồng dữ liệu](./ARCHITECTURE.md) - Cách hệ thống hoạt động.
-- [Bảo mật & Quyền truy cập](./SECURITY.md) - Signature, HTTPS, rate limit và policy.
-- [Cài đặt & Môi trường](./SETUP.md) - Cấu hình triển khai.
+---
 
-## Ghi chú vận hành
+## Luồng hoạt động
 
-- **Trang chủ** (`index.php`): cổng công cộng cho người dùng lấy OTP. Trình duyệt dùng Web UI token để truy cập API cùng origin.
-- **Trang Admin** (`/adminkaishop`): khu vực riêng tư dành cho chủ sở hữu.
-- **External API** (`/api/*`): chỉ yêu cầu chữ ký hợp lệ; không yêu cầu IP cố định khi `API_ENFORCE_IP_POLICY=false`.
-- **Middleware chính** (`api/middleware/ApiSecurity.php`): kiểm tra HTTPS, rate limit, timestamp/nonce/signature và chống replay.
+```
+Chủ tạo email (Admin/API) → Bán cho khách → Khách vào trang chủ → Nhập email → Xem OTP
+```
+
+1. **Chủ sở hữu** tạo email qua Admin Panel hoặc External API.
+2. **Bán email** cho khách hàng.
+3. **Khách hàng** vào `tmail.kaishop.id.vn`, nhập email mình đã mua → xem thư và lấy OTP.
+4. Nếu email chưa có trong hệ thống → thông báo lỗi rõ ràng.
+
+---
+
+## Tài liệu chi tiết
+
+- [Bảo mật & API](./SECURITY.md)
+- [Cài đặt môi trường](./SETUP.md)

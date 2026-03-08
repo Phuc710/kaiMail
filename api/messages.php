@@ -66,14 +66,11 @@ final class MessagesApiController
 
         $emailData = $this->findEmail($email);
         if (!$emailData) {
-            $emailData = $this->tryCreateCustomInbox($email);
-        }
-        if (!$emailData) {
             jsonResponse(['error' => 'Email not found'], 404);
         }
 
         if ((int) $emailData['is_expired'] === 1) {
-            jsonResponse(['error' => 'Email has expired'], 410);
+            jsonResponse(['error' => 'Email not found'], 404); // Treat expired as not found for public view
         }
 
         $emailId = (int) $emailData['id'];
@@ -136,43 +133,6 @@ final class MessagesApiController
         return is_array($row) ? $row : null;
     }
 
-    private function tryCreateCustomInbox(string $email): ?array
-    {
-        $parts = explode('@', $email);
-        if (count($parts) !== 2) {
-            return null;
-        }
-
-        $domain = strtolower(trim($parts[1]));
-        $stmt = $this->db->prepare('SELECT id FROM domains WHERE domain = ? AND is_active = 1 LIMIT 1');
-        $stmt->execute([$domain]);
-        $domainId = (int) $stmt->fetchColumn();
-        if ($domainId <= 0) {
-            return null;
-        }
-
-        $insertStmt = $this->db->prepare('
-            INSERT INTO emails (domain_id, email, name_type, expiry_type, created_at)
-            VALUES (?, ?, ?, ?, NOW())
-        ');
-        try {
-            $ok = $insertStmt->execute([$domainId, $email, 'custom', 'forever']);
-            if (!$ok) {
-                return null;
-            }
-        } catch (PDOException $e) {
-            // Handle concurrent create attempts for the same email.
-            if ((string) $e->getCode() === '23000') {
-                return $this->findEmail($email);
-            }
-            throw $e;
-        }
-
-        return [
-            'id' => (int) $this->db->lastInsertId(),
-            'is_expired' => 0,
-        ];
-    }
 
     private function countUnread(int $emailId): int
     {

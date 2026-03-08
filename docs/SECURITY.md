@@ -1,47 +1,54 @@
 # Bảo mật & Kiểm soát truy cập
 
-KaiMail triển khai mô hình bảo mật nhiều lớp để cân bằng giữa an toàn và khả năng tích hợp.
+---
 
-## Bảo mật External API
+## Trang chủ (Public)
 
-External API (`/api/*`) xác thực bằng **HMAC Signature**.
+Không cần đăng nhập. Xác thực tự động bằng **Web UI Token** (session cookie).
 
-Header bắt buộc:
-- `X-API-KEY`: Khóa truy cập.
-- `X-API-TIMESTAMP`: Unix timestamp.
-- `X-API-NONCE`: Chuỗi duy nhất cho từng request (khi `API_REQUIRE_NONCE=true`).
-- `X-API-SIGNATURE`: Chữ ký HMAC-SHA256.
+- **Quyền**: Chỉ xem thư của email được nhập vào.
+- **Không thể**: Tạo email, xóa, hay gọi API nội bộ.
 
-Server kiểm tra:
-- API key hợp lệ.
-- Timestamp trong TTL cho phép.
-- Signature đúng theo payload chuẩn.
-- Nonce chưa từng dùng (chống replay).
+---
 
-## Chính sách IP cho External API
+## Admin Panel (`/adminkaishop`)
 
-KaiMail hiện **không chặn IP mặc định** cho External API.
+- Đăng nhập bằng `ADMIN_ACCESS_KEY`.
+- Toàn quyền quản lý hệ thống.
 
-- `API_ENFORCE_IP_POLICY=false` (mặc định): gọi API từ mọi IP, chỉ cần signature hợp lệ.
-- `API_ENFORCE_IP_POLICY=true`: bật kiểm tra IP whitelist qua `API_ALLOWED_IPS` và `API_STRICT_MODE`.
+---
 
-Điều này phù hợp khi bot/script chạy trên hạ tầng IP thay đổi liên tục.
+## External API (`/api/*`)
 
-## Web UI Session Fallback
+Dành cho bot/script tích hợp. Xác thực bằng **2 Khóa tĩnh**.
 
-Để người dùng web truy cập API nội bộ mà không cần API key:
-- Web UI gửi `X-WEB-UI-TOKEN`.
-- Token phải khớp session server và cùng origin.
-- Cơ chế này chỉ phục vụ luồng web nội bộ.
+Gửi các header sau trong mọi request:
+
+| Header | Giá trị trong .env |
+|---|---|
+| `X-API-KEY` | `API_ACCESS_KEY` |
+| `X-API-SECRET` | `API_SECRET_KEY` |
+
+### Ví dụ
+
+```bash
+curl -H "X-API-KEY: key_cua_ban" -H "X-API-SECRET: secret_cua_ban" https://tmail.kaishop.id.vn/api/messages.php?email=user@domain.com
+```
+
+- Không cần IP cố định.
+- Không cần Signature phức tạp.
+- Chỉ cần đúng 2 key là dùng được.
+
+---
 
 ## HTTPS & Proxy
 
-Trong production:
-- Bật `API_REQUIRE_HTTPS=true`.
-- Nếu chạy sau Cloudflare/reverse proxy, bật `API_TRUST_PROXY_HEADERS=true` để nhận đúng proto và client IP.
+- Production bắt buộc HTTPS (`API_REQUIRE_HTTPS=true`).
+- Nếu dùng Cloudflare: bật `API_TRUST_PROXY_HEADERS=true`.
 
-## Rate Limit
+---
 
-Tất cả request API đều qua rate limiter:
-- Quá ngưỡng sẽ trả `429 Too Many Requests`.
-- Header phản hồi có `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`.
+## Rate Limiting
+
+- Vượt ngưỡng → `429 Too Many Requests`.
+- Headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`.

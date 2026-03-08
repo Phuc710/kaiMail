@@ -1,30 +1,81 @@
 # Kiến trúc hệ thống
 
-KaiMail được xây dựng với kiến trúc tách biệt, tập trung vào tốc độ và bảo mật.
+---
 
-## Các thành phần cốt lõi
+## Thành phần chính
 
-### 1. Web UI (Công cộng)
-Nằm tại đường dẫn gốc `/`. 
-- **Mục đích**: Quyền truy cập "Chỉ đọc" cho người dùng để lấy mã OTP.
-- **Cơ chế**: Sử dụng `session_start()` và một Web UI Token (`kaimail_web_ui_token`) để xác thực các yêu cầu lấy dữ liệu (fetch) và long-polling.
-- **Hạn chế**: Chỉ được phép xem nội dung của email cụ thể mà người dùng đã yêu cầu.
+### 1. Trang chủ (Public Portal)
 
-### 2. Bảng quản lý (Chủ sở hữu)
-Nằm tại đường dẫn `/adminkaishop`.
-- **Mục đích**: Quản trị hệ thống.
-- **Cơ chế**: Được bảo vệ bằng đăng nhập Admin và các API key dành riêng cho Admin.
-- **Trách nhiệm**: Quản lý tên miền, xem thống kê toàn cục, và dọn dẹp tin nhắn.
+- **Đường dẫn**: `/`
+- **Mục đích**: Khách hàng nhập email → xem hòm thư → lấy OTP.
+- **Cơ chế**: Dùng PHP Session + `kaimail_web_ui_token` để xác thực các request API nội bộ.
+- **Quyền hạn**: Chỉ xem thư của email được nhập vào. Không thể tạo email mới.
 
-### 3. Lớp API (Chương trình)
-Tất cả các điểm cuối API được tập trung dưới thư mục `/api/`.
-- **Admin APIs**: `/api/admin/*` - Yêu cầu xác thực Admin.
-- **Public APIs**: `/api/*.php` - Được sử dụng bởi Trang chủ, yêu cầu Session Web hoặc Chữ ký API từ bên ngoài hợp lệ.
+### 2. Admin Panel
 
-## Luồng dữ liệu (Người dùng lấy OTP)
+- **Đường dẫn**: `/adminkaishop`
+- **Mục đích**: Quản lý toàn bộ hệ thống (domain, email, thư, cài đặt).
+- **Xác thực**: Đăng nhập bằng `ADMIN_ACCESS_KEY`.
 
-1. Người dùng truy cập `tmail.kaishop.id.vn/user@domain.com`.
-2. Frontend khởi tạo phiên làm việc (session) và nhận `webToken`.
-3. Frontend bắt đầu quá trình **Long Polling** thông qua file `js/longPolling.js`.
-4. API kiểm tra header `X-WEB-UI-TOKEN` và cho phép yêu cầu (Chế độ Chỉ đọc).
-5. Khi có thư mới đến (qua SMTP/Webhook), quá trình long poll sẽ trả về dữ liệu ngay lập tức.
+### 3. Public API
+
+- **Đường dẫn**: `/api/messages.php`, `/api/longpoll.php`
+- **Mục đích**: Phục vụ trang chủ. Nhận dữ liệu hòm thư realtime qua Long Polling.
+- **Xác thực**: Web UI Session Token.
+
+### 4. External API
+
+- **Đường dẫn**: `/api/admin/*`, các endpoint riêng
+- **Mục đích**: Bot/script của chủ sở hữu tích hợp (tạo email, nhận webhook, v.v.)
+- **Xác thực**: HMAC Signature.
+
+---
+
+## Luồng dữ liệu - Người dùng lấy OTP
+
+```
+1. User truy cập tmail.kaishop.id.vn/user@domain.com
+2. PHP tạo session + web_ui_token
+3. JS gửi request đến /api/messages.php với X-WEB-UI-TOKEN
+4. API xác thực token → trả về danh sách thư
+5. JS khởi động Long Polling → nhận thư mới realtime
+6. Thư OTP đến → hiển thị ngay trong hòm thư
+```
+
+---
+
+## Luồng dữ liệu - Nhận thư qua Webhook
+
+```
+1. Server mail gửi webhook đến /api/webhook.php
+2. Webhook xác thực WEBHOOK_SECRET
+3. Lưu thư vào bảng messages
+4. Long Polling phát hiện thư mới → đẩy đến trình duyệt của user
+```
+
+---
+
+## Cấu trúc thư mục chính
+
+```
+/
+├── index.php           # Trang chủ (Public)
+├── api/
+│   ├── messages.php    # API lấy thư (Public)
+│   ├── longpoll.php    # Long Polling (Public)
+│   ├── webhook.php     # Nhận thư từ mail server
+│   ├── admin/          # Admin API (riêng tư)
+│   └── middleware/
+│       ├── ApiSecurity.php     # Bảo mật API
+│       └── AdminSecurity.php   # Bảo mật Admin
+├── config/
+│   ├── config.php      # Cấu hình constants
+│   └── database.php    # Kết nối DB
+├── includes/
+│   └── MessageService.php  # Logic xử lý thư
+├── js/
+│   ├── app.js          # Logic trang chủ
+│   └── longPolling.js  # Long Polling client
+├── docs/               # Tài liệu này
+└── .env                # Biến môi trường
+```
