@@ -72,7 +72,9 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
         <div class="stat-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline>
-                <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>
+                <path
+                    d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z">
+                </path>
             </svg>
         </div>
         <div class="stat-info">
@@ -92,10 +94,27 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
         <input type="text" id="searchInput" placeholder="Tìm email...">
     </div>
 
-    <select id="expiryFilter" class="select-filter">
-        <option value="">Tất cả email</option>
-        <option value="no_message">Không có tin nhắn</option>
-    </select>
+    <div class="filter-group">
+        <select id="statusFilter" class="select-filter">
+            <option value="active">Hoạt động</option>
+            <option value="expired">Đã hết hạn</option>
+            <option value="all">Tất cả trạng thái</option>
+        </select>
+
+        <select id="domainFilter" class="select-filter">
+            <option value="">Tất cả tên miền</option>
+            <?php foreach ($domains as $domain): ?>
+                <option value="<?= htmlspecialchars((string) $domain, ENT_QUOTES, 'UTF-8') ?>">
+                    <?= htmlspecialchars((string) $domain, ENT_QUOTES, 'UTF-8') ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+
+        <select id="expiryFilter" class="select-filter">
+            <option value="">Tất cả tiêu chí</option>
+            <option value="no_message">Không có tin nhắn</option>
+        </select>
+    </div>
 
     <button id="deleteSelectedBtn" class="btn danger hidden" type="button">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -262,7 +281,8 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
 
                 <div class="hint-box">
                     Cần cấu hình DNS/MX trước khi dùng domain nhận mail.
-                    <a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/adminkaishop/docs-domain" style="text-decoration: underline;">
+                    <a href="<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/adminkaishop/docs-domain"
+                        style="text-decoration: underline;">
                         Xem hướng dẫn
                     </a>
                 </div>

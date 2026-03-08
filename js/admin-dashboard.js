@@ -33,6 +33,8 @@ class AdminDashboardPage {
 
     bindEvents() {
         const searchInput = document.getElementById("searchInput");
+        const statusFilter = document.getElementById("statusFilter");
+        const domainFilter = document.getElementById("domainFilter");
         const expiryFilter = document.getElementById("expiryFilter");
         const selectAll = document.getElementById("selectAll");
         const deleteSelectedBtn = document.getElementById("deleteSelectedBtn");
@@ -45,6 +47,16 @@ class AdminDashboardPage {
                 this.currentPage = 1;
                 this.loadEmails();
             }, 280);
+        });
+
+        statusFilter?.addEventListener("change", () => {
+            this.currentPage = 1;
+            this.loadEmails();
+        });
+
+        domainFilter?.addEventListener("change", () => {
+            this.currentPage = 1;
+            this.loadEmails();
         });
 
         expiryFilter?.addEventListener("change", () => {
@@ -125,17 +137,20 @@ class AdminDashboardPage {
 
     async loadEmails(silent = false) {
         const search = String(document.getElementById("searchInput")?.value || "").trim();
+        const status = String(document.getElementById("statusFilter")?.value || "active");
+        const domain = String(document.getElementById("domainFilter")?.value || "");
         const expiry = String(document.getElementById("expiryFilter")?.value || "");
 
         if (!silent) this.setLoading(true);
 
         try {
             const params = new URLSearchParams({
-                filter: "active",
                 page: String(this.currentPage),
                 limit: "13",
             });
 
+            if (status !== "all") params.set("filter", status);
+            if (domain) params.set("domain", domain);
             if (search) params.set("search", search);
             if (expiry) params.set("expiry", expiry);
 
@@ -414,14 +429,14 @@ class AdminDashboardPage {
             modalBody.innerHTML = `
                 <div class="messages-list-admin">
                     ${messages.map((msg) => {
-                        const id = Number(msg.id || 0);
-                        const isUnread = Number(msg.is_read || 0) === 0;
-                        const sender = this.core.escapeHtml(this.core.cleanEmail(msg.from_email, msg.from_name));
-                        const subject = this.core.escapeHtml(msg.subject || "(Không có tiêu đề)");
-                        const preview = this.core.escapeHtml(msg.preview || msg.body_text || "");
-                        const time = this.core.escapeHtml(this.core.formatTimeVN(msg.received_at));
+                const id = Number(msg.id || 0);
+                const isUnread = Number(msg.is_read || 0) === 0;
+                const sender = this.core.escapeHtml(this.core.cleanEmail(msg.from_email, msg.from_name));
+                const subject = this.core.escapeHtml(msg.subject || "(Không có tiêu đề)");
+                const preview = this.core.escapeHtml(this.buildPreviewText(msg.preview || msg.body_text || ""));
+                const time = this.core.escapeHtml(this.core.formatTimeVN(msg.received_at));
 
-                        return `
+                return `
                             <div class="message-item-admin ${isUnread ? "unread" : ""}" data-action="open-message" data-message-id="${id}">
                                 <div class="message-info">
                                     <strong>${sender}</strong>
@@ -439,7 +454,7 @@ class AdminDashboardPage {
                                 </div>
                             </div>
                         `;
-                    }).join("")}
+            }).join("")}
                 </div>
             `;
         } catch (error) {
@@ -466,13 +481,7 @@ class AdminDashboardPage {
                 this.core.cleanEmail(data.from_email, data.from_name)
             )}</strong> • ${this.core.escapeHtml(this.core.formatDateTimeVN(data.received_at))}`;
 
-            if (data.body_html) {
-                bodyEl.innerHTML = data.body_html;
-                bodyEl.style.whiteSpace = "";
-            } else {
-                bodyEl.textContent = data.body_text || "(Không có nội dung)";
-                bodyEl.style.whiteSpace = "pre-wrap";
-            }
+            this.renderMessageBody(bodyEl, data);
 
             this.core.openModal("viewMessageModal");
         } catch (error) {
@@ -523,6 +532,70 @@ class AdminDashboardPage {
             event.stopPropagation();
             this.deleteMessage(messageId, emailId);
         }
+    }
+
+    buildPreviewText(value) {
+        const raw = String(value || "");
+        if (raw === "") return "";
+        const source = this.looksLikeHtml(raw)
+            ? raw
+                .replace(/<style[\s\S]*?<\/style>/gi, " ")
+                .replace(/<script[\s\S]*?<\/script>/gi, " ")
+                .replace(/<[^>]+>/g, " ")
+                .replace(/&nbsp;/gi, " ")
+            : raw;
+        return source.replace(/\s+/g, " ").trim();
+    }
+
+    renderMessageBody(container, data) {
+        const htmlBody = this.extractHtmlBody(data);
+        container.style.whiteSpace = "";
+
+        if (htmlBody !== "") {
+            this.renderHtmlBody(container, htmlBody);
+            return;
+        }
+
+        container.className = "modal-body";
+        container.textContent = String(data?.body_text || "(Khong co noi dung)");
+        container.style.whiteSpace = "pre-wrap";
+    }
+
+    extractHtmlBody(data) {
+        const bodyHtml = String(data?.body_html || "").trim();
+        if (bodyHtml !== "") return bodyHtml;
+
+        const bodyText = String(data?.body_text || "").trim();
+        return this.looksLikeHtml(bodyText) ? bodyText : "";
+    }
+
+    looksLikeHtml(value) {
+        const text = String(value || "").trim();
+        if (text === "") return false;
+        if (!/<\/?[a-z][\s\S]*>/i.test(text)) return false;
+        return /<!doctype\s+html|<html[\s>]|<head[\s>]|<body[\s>]|<table[\s>]|<div[\s>]|<p[\s>]|<a[\s>]|<img[\s>]|<style[\s>]/i.test(text);
+    }
+
+    renderHtmlBody(container, html) {
+        container.className = "modal-body email-body";
+        container.textContent = "";
+
+        const frame = document.createElement("iframe");
+        frame.className = "email-body-frame";
+        frame.title = "Email HTML content";
+        frame.setAttribute("sandbox", "allow-popups allow-popups-to-escape-sandbox");
+        frame.setAttribute("referrerpolicy", "no-referrer");
+        frame.srcdoc = this.buildEmailSrcdoc(html);
+        container.appendChild(frame);
+    }
+
+    buildEmailSrcdoc(html) {
+        const source = String(html || "");
+        if (source === "") return "";
+        if (/<\s*html[\s>]/i.test(source) || /<!doctype\s+html/i.test(source)) {
+            return source;
+        }
+        return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base target="_blank"></head><body>${source}</body></html>`;
     }
 
     startPolling() {
@@ -597,5 +670,3 @@ document.addEventListener("DOMContentLoaded", () => {
         window.addEventListener("admin-core-ready", boot, { once: true });
     }
 });
-
-

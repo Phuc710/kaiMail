@@ -78,6 +78,12 @@ try {
             $params[] = "%$search%";
         }
 
+        $domain = trim($_GET['domain'] ?? '');
+        if ($domain) {
+            $where[] = "e.email LIKE ?";
+            $params[] = "%@$domain";
+        }
+
         $whereClause = $where ? "WHERE " . implode(" AND ", $where) : "";
 
         // Count total with alias 'e'

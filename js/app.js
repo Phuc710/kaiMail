@@ -395,7 +395,7 @@ class KaiMailUserPage {
         const unread = Number(msg?.is_read || 0) === 0;
         const sender = this.escapeHtml(this.getDisplayName(msg));
         const subject = this.escapeHtml(String(msg?.subject || "(Không có tiêu đề)"));
-        const preview = this.escapeHtml(String(msg?.preview || ""));
+        const preview = this.escapeHtml(this.buildPreviewText(msg?.preview || ""));
         const timeText = this.escapeHtml(this.time.formatRelative(msg?.received_at));
 
         return `
@@ -424,13 +424,7 @@ class KaiMailUserPage {
             this.modalSubject.textContent = String(data?.subject || "(Không có tiêu đề)");
             this.modalFrom.innerHTML = `Người gửi: <strong>${this.escapeHtml(sender)}</strong> &nbsp;|&nbsp; ${this.escapeHtml(receivedAt)}`;
 
-            if (String(data?.body_html || "").trim() !== "") {
-                this.modalBody.className = "modal-body email-body";
-                this.modalBody.innerHTML = String(data.body_html);
-            } else {
-                this.modalBody.className = "modal-body text-only";
-                this.modalBody.textContent = String(data?.body_text || "(Không có nội dung)");
-            }
+            this.renderMessageBody(data);
 
             this.modal.classList.remove("hidden");
             document.body.style.overflow = "hidden";
@@ -451,6 +445,69 @@ class KaiMailUserPage {
     closeModal() {
         this.modal.classList.add("hidden");
         document.body.style.overflow = "";
+        this.modalBody.className = "modal-body";
+        this.modalBody.textContent = "";
+    }
+
+    buildPreviewText(value) {
+        const raw = String(value || "");
+        if (raw === "") return "";
+        const source = this.looksLikeHtml(raw)
+            ? raw
+                .replace(/<style[\s\S]*?<\/style>/gi, " ")
+                .replace(/<script[\s\S]*?<\/script>/gi, " ")
+                .replace(/<[^>]+>/g, " ")
+                .replace(/&nbsp;/gi, " ")
+            : raw;
+        return source.replace(/\s+/g, " ").trim();
+    }
+
+    renderMessageBody(data) {
+        const htmlBody = this.extractHtmlBody(data);
+        if (htmlBody !== "") {
+            this.renderHtmlBody(this.modalBody, htmlBody);
+            return;
+        }
+
+        this.modalBody.className = "modal-body text-only";
+        this.modalBody.textContent = String(data?.body_text || "(Không có nội dung)");
+    }
+
+    extractHtmlBody(data) {
+        const bodyHtml = String(data?.body_html || "").trim();
+        if (bodyHtml !== "") return bodyHtml;
+
+        const bodyText = String(data?.body_text || "").trim();
+        return this.looksLikeHtml(bodyText) ? bodyText : "";
+    }
+
+    looksLikeHtml(value) {
+        const text = String(value || "").trim();
+        if (text === "") return false;
+        if (!/<\/?[a-z][\s\S]*>/i.test(text)) return false;
+        return /<!doctype\s+html|<html[\s>]|<head[\s>]|<body[\s>]|<table[\s>]|<div[\s>]|<p[\s>]|<a[\s>]|<img[\s>]|<style[\s>]/i.test(text);
+    }
+
+    renderHtmlBody(container, html) {
+        container.className = "modal-body email-body";
+        container.textContent = "";
+
+        const frame = document.createElement("iframe");
+        frame.className = "email-body-frame";
+        frame.title = "Email HTML content";
+        frame.setAttribute("sandbox", "allow-popups allow-popups-to-escape-sandbox");
+        frame.setAttribute("referrerpolicy", "no-referrer");
+        frame.srcdoc = this.buildEmailSrcdoc(html);
+        container.appendChild(frame);
+    }
+
+    buildEmailSrcdoc(html) {
+        const source = String(html || "");
+        if (source === "") return "";
+        if (/<\s*html[\s>]/i.test(source) || /<!doctype\s+html/i.test(source)) {
+            return source;
+        }
+        return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base target="_blank"></head><body>${source}</body></html>`;
     }
 
     async copyEmail() {

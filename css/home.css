@@ -497,8 +497,17 @@ body.user-page-body {
 }
 
 .modal-body.email-body {
+    padding: 0;
     background: #ffffff;
     color: #334155;
+}
+
+.email-body-frame {
+    display: block;
+    width: 100%;
+    min-height: 70vh;
+    border: 0;
+    background: #ffffff;
 }
 
 .modal-body.text-only {
