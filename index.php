@@ -39,7 +39,7 @@ $webUiToken = (string) $_SESSION['kaimail_web_ui_token'];
 // Release session lock early to keep API requests responsive.
 if (session_status() === PHP_SESSION_ACTIVE) {
     session_write_close();
-}   
+}
 $homeCssVer = @filemtime(__DIR__ . '/css/home.css') ?: time();
 $longPollingVer = @filemtime(__DIR__ . '/js/longPolling.js') ?: time();
 $appJsVer = @filemtime(__DIR__ . '/js/app.js') ?: time();
@@ -47,7 +47,7 @@ $siteUrl = rtrim(BASE_URL, '/');
 $pageUrl = $siteUrl . '/';
 $kaishopUrl = 'https://kaishop.id.vn';
 $telegramBotUrl = 'https://t.me/KaiHub_bot';
-$seoTitle = 'KaiMail - Dịch vụ Get Mail tạm thời miễn phí | KaiHub';
+$seoTitle = 'KaiMail - Dịch vụ Temp Mail Free | KaiHub';
 $seoDescription = 'KaiMail là hệ thống Get Mail của KaiShop, hỗ trợ nhận email tạm thời theo thời gian thực để lấy OTP, xác minh tài khoản và kiểm tra luồng đăng ký an toàn.';
 $seoKeywords = 'KaiMail, get mail, email tạm thời, hộp thư tạm thời, nhận OTP, KaiShop, KaiHub';
 $seoImage = $siteUrl . '/assets/kaishop_favicon.png';
@@ -144,7 +144,7 @@ $structuredData = [
     <div class="user-page-container">
         <header class="user-topbar">
             <div class="brand-block">
-                
+
                 <span class="brand-text">
                     <span class="brand-title">KaiMail</span>
                 </span>
@@ -241,24 +241,6 @@ $structuredData = [
         </main>
     </div>
 
-    <div id="emailModal" class="modal hidden">
-        <div class="modal-backdrop"></div>
-        <div class="modal-content">
-            <div class="modal-header">
-                <div class="modal-title">
-                    <h2 id="modalSubject"></h2>
-                    <p id="modalFrom"></p>
-                </div>
-                <button id="closeModal" class="btn-close">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                </button>
-            </div>
-            <div id="modalBody" class="modal-body"></div>
-        </div>
-    </div>
 
     <script>
         window.KAIMAIL_CONFIG = {

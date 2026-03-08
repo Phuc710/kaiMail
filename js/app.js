@@ -204,11 +204,11 @@ class KaiMailUserPage {
         this.loadingState = document.getElementById("loadingState");
         this.unreadBadge = document.getElementById("unreadBadge");
 
-        this.modal = document.getElementById("emailModal");
-        this.modalSubject = document.getElementById("modalSubject");
-        this.modalFrom = document.getElementById("modalFrom");
-        this.modalBody = document.getElementById("modalBody");
-        this.closeModalBtn = document.getElementById("closeModal");
+        this.modal = null;
+        this.modalSubject = null;
+        this.modalFrom = null;
+        this.modalBody = null;
+        this.closeModalBtn = null;
 
         this.defaultGetBtnHtml = this.getMailBtn ? this.getMailBtn.innerHTML : "";
     }
@@ -222,12 +222,7 @@ class KaiMailUserPage {
             this.inboxSection &&
             this.messagesList &&
             this.emptyState &&
-            this.unreadBadge &&
-            this.modal &&
-            this.modalSubject &&
-            this.modalFrom &&
-            this.modalBody &&
-            this.closeModalBtn
+            this.unreadBadge
         );
     }
 
@@ -250,17 +245,13 @@ class KaiMailUserPage {
         this.messagesList.addEventListener("click", (event) => {
             const item = event.target.closest(".message-item");
             if (!item) return;
-            const id = Number(item.getAttribute("data-id") || "0");
-            if (id > 0) this.openMessage(id);
-        });
-
-        this.closeModalBtn.addEventListener("click", () => this.closeModal());
-        this.modal.querySelector(".modal-backdrop")?.addEventListener("click", () => this.closeModal());
-        document.addEventListener("keydown", (event) => {
-            if (event.key === "Escape" && !this.modal.classList.contains("hidden")) {
-                this.closeModal();
+            const header = event.target.closest(".message-header");
+            if (header) {
+                const id = Number(item.getAttribute("data-id") || "0");
+                if (id > 0) this.toggleMessage(item, id);
             }
         });
+
         window.addEventListener("beforeunload", () => this.stopPolling());
 
         const initialEmail = this.resolveInitialEmail();
@@ -403,17 +394,49 @@ class KaiMailUserPage {
 
         return `
             <div class="message-item ${unread ? "unread" : ""}" data-id="${id}">
-                <div class="message-dot"></div>
-                <div class="message-content">
-                    <div class="message-sender">${sender}</div>
-                    <div class="message-subject">${subject}</div>
+                <div class="message-header">
+                    <div class="message-dot"></div>
+                    <div class="message-content">
+                        <div class="message-sender">${sender}</div>
+                        <div class="message-subject">${subject}</div>
+                    </div>
+                    <div class="message-time">${timeText}</div>
                 </div>
-                <div class="message-time">${timeText}</div>
+                <div class="message-details-wrap">
+                    <div class="message-detail-inner">
+                        <div class="detail-head" id="meta-${id}"></div>
+                        <div class="message-detail-body" id="body-${id}">Đang tải...</div>
+                    </div>
+                </div>
             </div>
         `;
     }
 
-    async openMessage(id) {
+    async toggleMessage(itemElement, id) {
+        if (itemElement.classList.contains("active")) {
+            itemElement.classList.remove("active");
+            return;
+        }
+
+        // Close other opened messages
+        const activeItems = this.messagesList.querySelectorAll(".message-item.active");
+        activeItems.forEach(el => el.classList.remove("active"));
+
+        itemElement.classList.add("active");
+
+        if (itemElement.classList.contains("unread")) {
+            itemElement.classList.remove("unread");
+            if (this.state.unread > 0) {
+                this.state.unread -= 1;
+                this.setUnread(this.state.unread);
+            }
+        }
+
+        const bodyContainer = document.getElementById(`body-${id}`);
+        const metaContainer = document.getElementById(`meta-${id}`);
+
+        if (bodyContainer.dataset.loaded === "true") return;
+
         try {
             const { ok, data } = await this.api.fetchMessageById(id);
             if (!ok || !data) {
@@ -422,44 +445,113 @@ class KaiMailUserPage {
 
             const sender = this.getDisplayName(data);
             const receivedAt = this.time.formatDateTime(data?.received_at);
+            const fromEmail = this.escapeHtml(String(data?.from_email || ""));
+            const subject = this.escapeHtml(String(data?.subject || "(Không có tiêu đề)"));
+            const bodyText = String(data?.body_text || "");
 
-            this.modalSubject.textContent = String(data?.subject || "(Không có tiêu đề)");
-            this.modalFrom.innerHTML = `Người gửi: <strong>${this.escapeHtml(sender)}</strong> &nbsp;|&nbsp; ${this.escapeHtml(receivedAt)}`;
-
-            this.renderMessageBody(data);
-
-            this.modal.classList.remove("hidden");
-            document.body.style.overflow = "hidden";
-
-            const row = this.messagesList.querySelector(`.message-item[data-id="${id}"]`);
-            if (row && row.classList.contains("unread")) {
-                row.classList.remove("unread");
-                if (this.state.unread > 0) {
-                    this.state.unread -= 1;
-                    this.setUnread(this.state.unread);
-                }
+            const otp = this.extractOTP(subject, bodyText);
+            let otpButtonHtml = "";
+            if (otp) {
+                otpButtonHtml = `
+                    <button class="btn-copy-otp" onclick="window.kaimail.copyOtp('${this.escapeHtml(otp)}')">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                        </svg>
+                        Copy ${this.escapeHtml(otp)}
+                    </button>
+                `;
             }
+
+            metaContainer.innerHTML = `
+                <h2 class="detail-title">${subject}</h2>
+                <div class="detail-meta">
+                    <div class="detail-meta-text">
+                        <span>Người gửi: <strong>${this.escapeHtml(sender)}</strong> &nbsp;|&nbsp; ${this.escapeHtml(receivedAt)}</span>
+                    </div>
+                    ${otpButtonHtml}
+                </div>
+            `;
+
+            this.renderMessageBody(bodyContainer, data);
+            bodyContainer.dataset.loaded = "true";
+
         } catch (error) {
-            this.toast(error?.message || "Không thể mở email", "error");
+            bodyContainer.innerHTML = `<span style="color:red">${this.escapeHtml(error?.message || "Không thể mở email")}</span>`;
         }
     }
 
-    closeModal() {
-        this.modal.classList.add("hidden");
-        document.body.style.overflow = "";
-        this.modalBody.className = "modal-body";
-        this.modalBody.textContent = "";
+    extractOTP(subject, body) {
+        // Look for 4 to 8 digit numbers in subject or body
+        const otpRegex = /\b\d{4,8}\b/g;
+
+        if (subject) {
+            const subjectMatches = [...subject.matchAll(otpRegex)];
+            if (subjectMatches.length > 0) {
+                // Return the largest string if multiple or sequence, but usually it's the last token (e.g. "code is 123456")
+                return subjectMatches[subjectMatches.length - 1][0];
+            }
+        }
+
+        if (body) {
+            const bodyMatches = [...body.matchAll(otpRegex)];
+            if (bodyMatches.length > 0) {
+                const uniqueOtps = [...new Set(bodyMatches.map(m => m[0]))];
+
+                // If there's only one distinct number found, we are highly confident
+                if (uniqueOtps.length === 1) {
+                    return uniqueOtps[0];
+                }
+
+                // Search for strong visual cues in the text body if multiple numbers exist
+                const lines = body.split('\n');
+                for (const line of lines) {
+                    if (line.toLowerCase().includes('code') || line.toLowerCase().includes('otp') || line.toLowerCase().includes('mã')) {
+                        const lineMatches = line.match(otpRegex);
+                        if (lineMatches && lineMatches.length === 1) {
+                            return lineMatches[0];
+                        }
+                    }
+                }
+
+                // Fallback to first found number not heavily surrounded by random characters
+                for (const m of bodyMatches) {
+                    if (!body.includes(m[0] + '-') && !body.includes('-' + m[0]) && !body.includes(m[0] + '/')) { // Avoid dates
+                        return m[0];
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
-    renderMessageBody(data) {
+    async copyOtp(code) {
+        if (!code) return;
+        const msg = `Đã copy thành công mã: ${code}`;
+        try {
+            await navigator.clipboard.writeText(code);
+            this.toast(msg, "success");
+        } catch (err) {
+            const input = document.createElement("input");
+            input.value = code;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand("copy");
+            document.body.removeChild(input);
+            this.toast(msg, "success");
+        }
+    }
+
+    renderMessageBody(container, data) {
         const htmlBody = this.extractHtmlBody(data);
         if (htmlBody !== "") {
-            this.renderHtmlBody(this.modalBody, htmlBody);
+            this.renderHtmlBody(container, htmlBody);
             return;
         }
 
-        this.modalBody.className = "modal-body text-only";
-        this.modalBody.textContent = String(data?.body_text || "(Không có nội dung)");
+        container.className = "message-detail-body";
+        container.innerHTML = `<pre>${this.escapeHtml(String(data?.body_text || "(Không có nội dung)"))}</pre>`;
     }
 
     extractHtmlBody(data) {
@@ -478,7 +570,7 @@ class KaiMailUserPage {
     }
 
     renderHtmlBody(container, html) {
-        container.className = "modal-body email-body";
+        container.className = "message-detail-body email-body";
         container.textContent = "";
 
         const frame = document.createElement("iframe");

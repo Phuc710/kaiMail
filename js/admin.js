@@ -527,7 +527,7 @@ class AdminCore {
                 this.closeModal("createModal");
 
                 if (window.adminDashboard && typeof window.adminDashboard.reloadData === "function") {
-                    await window.adminDashboard.reloadData();
+                    window.adminDashboard.reloadData().catch(console.error);
                 }
             } catch (error) {
                 this.showToast("Lỗi kết nối máy chủ", "error");
