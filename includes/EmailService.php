@@ -16,20 +16,30 @@ class EmailService
     {
         $db = getDB();
 
-        $nameType = $options['name_type'] ?? 'vn';
+        $nameType = (string) ($options['name_type'] ?? 'vn');
         $expiryType = 'forever';
-        $customEmail = trim($options['email'] ?? '');
-        $domain = trim($options['domain'] ?? '');
-        $quantity = min(max(1, (int) ($options['quantity'] ?? 1)), 10);
+        $customEmail = strtolower(trim((string) ($options['email'] ?? '')));
+        $domain = strtolower(trim((string) ($options['domain'] ?? '')));
+        $quantity = min(max(1, (int) ($options['quantity'] ?? 1)), 50);
+
+        if ($nameType === 'custom' && $customEmail === '') {
+            $errors[] = 'Custom email is required';
+            return [];
+        }
+
+        if ($nameType === 'custom' && !preg_match('/^[a-z0-9\-\._]+$/', $customEmail)) {
+            $errors[] = 'Email can only contain lowercase letters, numbers, dot, hyphen and underscore';
+            return [];
+        }
 
         if (empty($domain)) {
             // Need logical fallback or error handling by caller before here ideally
             // But let's check DB for default if empty
             $stmt = $db->query("SELECT domain FROM domains WHERE is_active = 1 LIMIT 1");
             $row = $stmt->fetch();
-            if ($row)
-                $domain = $row['domain'];
-            else {
+            if ($row) {
+                $domain = strtolower((string) $row['domain']);
+            } else {
                 $errors[] = 'No domain available';
                 return [];
             }
@@ -49,46 +59,59 @@ class EmailService
         $createdEmails = [];
 
         for ($i = 0; $i < $quantity; $i++) {
+            $attempt = $i + 1;
+
             // Generate Username
             if ($nameType === 'custom' && $customEmail) {
-                if (!preg_match('/^[a-z0-9]+$/', $customEmail)) {
-                    $errors[] = 'Email can only contain lowercase letters and numbers';
-                    continue;
-                }
-                $username = $customEmail . ($quantity > 1 ? '_' . ($i + 1) : '');
+                $username = $customEmail . ($quantity > 1 ? '_' . $attempt : '');
                 $actualNameType = 'custom';
             } else {
                 $username = NameGenerator::generateUsername($nameType);
                 $actualNameType = $nameType;
             }
 
-            $email = $username . '@' . $domain;
+            $email = strtolower($username . '@' . $domain);
 
             // Check duplicate
             $stmt = $db->prepare("SELECT id FROM emails WHERE email = ?");
             $stmt->execute([$email]);
             if ($stmt->fetch()) {
-                $errors[] = "Email exists: $email";
+                $errors[] = "[{$attempt}/{$quantity}] Email exists: $email";
                 continue;
             }
 
             // All generated emails are permanent.
             $expiresAt = null;
 
-            // Insert
-            $stmt = $db->prepare("
-                INSERT INTO emails (domain_id, email, name_type, expiry_type, expires_at)
-                VALUES (?, ?, ?, ?, ?)
-            ");
-            $stmt->execute([$domainId, $email, $actualNameType, $expiryType, $expiresAt]);
+            try {
+                // Insert
+                $stmt = $db->prepare("
+                    INSERT INTO emails (domain_id, email, name_type, expiry_type, expires_at)
+                    VALUES (?, ?, ?, ?, ?)
+                ");
+                $stmt->execute([$domainId, $email, $actualNameType, $expiryType, $expiresAt]);
 
-            $createdEmails[] = [
-                'id' => $db->lastInsertId(),
-                'email' => $email,
-                'name_type' => $actualNameType,
-                'expiry_type' => $expiryType,
-                'expires_at' => $expiresAt
-            ];
+                $createdEmails[] = [
+                    'id' => $db->lastInsertId(),
+                    'email' => $email,
+                    'name_type' => $actualNameType,
+                    'expiry_type' => $expiryType,
+                    'expires_at' => $expiresAt
+                ];
+            } catch (PDOException $e) {
+                $dbMessage = strtolower((string) $e->getMessage());
+                $isDuplicate = (int) $e->getCode() === 23000
+                    || str_contains($dbMessage, 'duplicate')
+                    || str_contains($dbMessage, 'unique');
+
+                if ($isDuplicate) {
+                    $errors[] = "[{$attempt}/{$quantity}] Email exists: $email";
+                    continue;
+                }
+
+                $errors[] = "[{$attempt}/{$quantity}] Failed to create: $email";
+                error_log("EmailService createEmails failed for {$email}: " . $e->getMessage());
+            }
         }
 
         return $createdEmails;

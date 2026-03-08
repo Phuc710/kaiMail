@@ -466,11 +466,34 @@ class AdminCore {
         });
     }
 
+    sanitizeCustomEmailName(rawValue) {
+        return String(rawValue || "")
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, "")
+            .replace(/[^a-z0-9._-]/g, "");
+    }
+
+    normalizeCreateEmailError(errorItem) {
+        if (!errorItem) return "";
+        if (typeof errorItem === "string") return errorItem;
+        if (typeof errorItem === "object") {
+            const message = String(errorItem.message || errorItem.error || "").trim();
+            if (message) return message;
+            const email = String(errorItem.email || "").trim();
+            if (email) return `Không thể tạo ${email}`;
+        }
+        return String(errorItem).trim();
+    }
+
     bindCreateEmailForm() {
         const form = document.getElementById("createEmailForm");
         if (!form) return;
 
         const customEmailGroup = document.getElementById("customEmailGroup");
+        const customEmailInput = document.getElementById("customEmail");
+        const quantityInput = document.getElementById("emailQuantity");
+
         form.querySelectorAll('input[name="name_type"]').forEach((radio) => {
             radio.addEventListener("change", () => {
                 if (!customEmailGroup) return;
@@ -487,8 +510,17 @@ class AdminCore {
 
             const formData = new FormData(form);
             const nameType = String(formData.get("name_type") || "vn");
-            const customEmail = String(document.getElementById("customEmail")?.value || "").trim().toLowerCase();
+            const customEmail = this.sanitizeCustomEmailName(customEmailInput?.value || "");
             const selectedDomain = String(document.getElementById("domainSelect")?.value || "").trim();
+            const quantityRaw = Number.parseInt(String(quantityInput?.value || "1"), 10);
+            const quantity = Number.isFinite(quantityRaw) ? Math.min(50, Math.max(1, quantityRaw)) : 1;
+
+            if (customEmailInput) {
+                customEmailInput.value = customEmail;
+            }
+            if (quantityInput) {
+                quantityInput.value = String(quantity);
+            }
 
             if (!selectedDomain) {
                 this.showToast("Vui lòng chọn domain hoạt động", "error");
@@ -503,7 +535,7 @@ class AdminCore {
             submitBtn.disabled = true;
             submitBtn.textContent = "Đang tạo...";
 
-            const payload = { name_type: nameType, domain: selectedDomain };
+            const payload = { name_type: nameType, domain: selectedDomain, quantity };
             if (nameType === "custom") {
                 payload.email = customEmail;
             }
@@ -516,13 +548,25 @@ class AdminCore {
                 }
 
                 const created = Number(data?.created || 0);
+                const errors = Array.isArray(data?.errors)
+                    ? data.errors.map((item) => this.normalizeCreateEmailError(item)).filter(Boolean)
+                    : [];
+
                 if (created > 0) {
-                    this.showToast(created === 1 ? "Đã tạo email mới" : `Đã tạo ${created} email`, "success");
-                } else if (Array.isArray(data?.errors) && data.errors.length > 0) {
-                    this.showToast(String(data.errors[0]), "error");
+                    const successMessage = `Đã tạo ${created}/${quantity} email`;
+                    if (errors.length > 0) {
+                        this.showToast(`${successMessage} (${errors.length} lỗi). Lỗi đầu tiên: ${errors[0]}`, "warning");
+                    } else {
+                        this.showToast(successMessage, "success");
+                    }
+                } else if (errors.length > 0) {
+                    this.showToast(errors[0], "error");
+                } else {
+                    this.showToast("Không thể tạo email", "error");
                 }
 
                 form.reset();
+                if (quantityInput) quantityInput.value = "1";
                 if (customEmailGroup) customEmailGroup.classList.add("hidden");
                 this.closeModal("createModal");
 
@@ -660,4 +704,3 @@ document.addEventListener("DOMContentLoaded", async () => {
     await core.init();
     window.dispatchEvent(new CustomEvent("admin-core-ready"));
 });
-
