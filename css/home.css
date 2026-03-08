@@ -293,8 +293,13 @@ body.user-page-body {
     transform-origin: center;
 }
 
-.btn-refresh.spinning svg {
+.btn-refresh.spinning svg,
+.btn-refresh.animate svg {
     animation: spin-refresh 0.8s linear infinite;
+}
+
+.btn-refresh.animate svg {
+    animation: spin-refresh 0.6s ease-in-out;
 }
 
 @keyframes spin-refresh {

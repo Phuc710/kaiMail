@@ -337,6 +337,10 @@ class KaiMailUserPage {
             const messages = Array.isArray(data?.messages) ? data.messages : [];
             this.renderMessages(messages, true);
             this.setUnread(this.state.unread);
+
+            if (manual) {
+                this.toast("Đã làm mới hộp thư", "success");
+            }
             return true;
         } catch (error) {
             this.toast(error?.message || "Không thể tải hộp thư", "error");
@@ -609,6 +613,13 @@ class KaiMailUserPage {
     setRefreshLoading(loading) {
         this.refreshBtn.disabled = Boolean(loading);
         this.refreshBtn.classList.toggle("spinning", Boolean(loading));
+
+        if (loading) {
+            this.refreshBtn.classList.add("animate");
+            setTimeout(() => {
+                this.refreshBtn.classList.remove("animate");
+            }, 600);
+        }
     }
 
     toast(message, type = "info") {
