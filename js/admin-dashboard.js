@@ -33,7 +33,6 @@ class AdminDashboardPage {
 
     bindEvents() {
         const searchInput = document.getElementById("searchInput");
-        const statusFilter = document.getElementById("statusFilter");
         const domainFilter = document.getElementById("domainFilter");
         const expiryFilter = document.getElementById("expiryFilter");
         const selectAll = document.getElementById("selectAll");
@@ -47,11 +46,6 @@ class AdminDashboardPage {
                 this.currentPage = 1;
                 this.loadEmails();
             }, 280);
-        });
-
-        statusFilter?.addEventListener("change", () => {
-            this.currentPage = 1;
-            this.loadEmails();
         });
 
         domainFilter?.addEventListener("change", () => {
@@ -137,7 +131,6 @@ class AdminDashboardPage {
 
     async loadEmails(silent = false) {
         const search = String(document.getElementById("searchInput")?.value || "").trim();
-        const status = String(document.getElementById("statusFilter")?.value || "active");
         const domain = String(document.getElementById("domainFilter")?.value || "");
         const expiry = String(document.getElementById("expiryFilter")?.value || "");
 
@@ -149,10 +142,9 @@ class AdminDashboardPage {
                 limit: "13",
             });
 
-            if (status !== "all") params.set("filter", status);
             if (domain) params.set("domain", domain);
             if (search) params.set("search", search);
-            if (expiry) params.set("expiry", expiry);
+            if (expiry === "no_message") params.set("no_message", "1");
 
             const { ok, data } = await this.core.fetchJson(`/api/admin/emails.php?${params.toString()}`);
             if (!ok || !data) {

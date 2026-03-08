@@ -31,15 +31,10 @@ CREATE TABLE IF NOT EXISTS emails (
     domain_id INT NOT NULL,
     email VARCHAR(255) NOT NULL UNIQUE,
     name_type ENUM('vn', 'en', 'custom') DEFAULT 'en',
-    expiry_type ENUM('30days', '1year', '2years', 'forever') DEFAULT 'forever',
-    expires_at DATETIME NULL,
-    is_expired TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
     INDEX idx_email (email),
-    INDEX idx_domain_id (domain_id),
-    INDEX idx_expires (expires_at),
-    INDEX idx_expired (is_expired)
+    INDEX idx_domain_id (domain_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================

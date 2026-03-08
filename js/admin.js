@@ -491,14 +491,15 @@ class AdminCore {
         if (!form) return;
 
         const customEmailGroup = document.getElementById("customEmailGroup");
+        const quantityGroup = document.getElementById("quantityGroup");
         const customEmailInput = document.getElementById("customEmail");
         const quantityInput = document.getElementById("emailQuantity");
 
         form.querySelectorAll('input[name="name_type"]').forEach((radio) => {
             radio.addEventListener("change", () => {
-                if (!customEmailGroup) return;
                 const showCustom = radio.checked && radio.value === "custom";
-                customEmailGroup.classList.toggle("hidden", !showCustom);
+                if (customEmailGroup) customEmailGroup.classList.toggle("hidden", !showCustom);
+                if (quantityGroup) quantityGroup.classList.toggle("hidden", showCustom);
             });
         });
 
@@ -568,6 +569,7 @@ class AdminCore {
                 form.reset();
                 if (quantityInput) quantityInput.value = "1";
                 if (customEmailGroup) customEmailGroup.classList.add("hidden");
+                if (quantityGroup) quantityGroup.classList.remove("hidden");
                 this.closeModal("createModal");
 
                 if (window.adminDashboard && typeof window.adminDashboard.reloadData === "function") {

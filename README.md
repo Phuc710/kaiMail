@@ -1,371 +1,91 @@
 # KaiMail
 
-## 📋 Tổng Quan
+KaiMail is a temporary email platform with:
+- Public inbox UI (`/`)
+- Admin panel (`/adminkaishop`)
+- External API for bots/integrations (`/api/*.php`)
 
-KaiMail là hệ thống temporary email (email tạm thời) được xây dựng bằng PHP, RESTful API. Hệ thống cho phép tạo email tạm thời và nhận messages từ external services.
+## Current Product Rules
+- `emails` table does not use expiry fields anymore.
+- Admin bulk email creation supports up to `50` emails/request.
+- External `POST /api/emails.php` currently allows `quantity` from `1` to `10`.
 
-## 🏗️ Architecture
+## Main URLs
+- Public UI: `/`
+- Admin UI: `/adminkaishop`
+- API docs page (admin): `/adminkaishop/docs-api`
+- Domain guide (admin): `/adminkaishop/docs-domain`
 
-### Technology Stack
-- **Backend**: PHP 8.0+
-- **Database**: MySQL/MariaDB
-- **Web Server**: Apache (XAMPP)
-- **Pattern**: MVC + Service Layer
-- **API Style**: RESTful
+## Authentication
 
-### Project Structure
-
-```
-kaiMail/
-├── api/                        # API Layer
-│   ├── controllers/            # Controllers
-│   │   └── EmailController.php
-│   ├── services/               # Business Logic
-│   │   ├── BaseService.php
-│   │   ├── DomainService.php
-│   │   └── EmailService.php
-│   ├── middleware/             # Middleware
-│   │   └── AuthMiddleware.php
-│   ├── admin/                  # Admin API
-│   │   ├── auth.php
-│   │   ├── emails.php
-│   │   ├── messages.php
-│   │   └── stats.php
-│   ├── webhook/                # Cloudflare Worker Webhook
-│   │   └── emails.php
-│   ├── index.php               # API Router (Clean URLs)
-│   ├── emails.php              # User API - Check email
-│   ├── messages.php            # User API - Get messages
-│   └── long-poll.php           # Long polling
-│
-├── adminkaishop/               # Admin Panel
-│   ├── index.php               # Dashboard
-│   ├── login.php               # Login page
-│   ├── expired.php             # Expired emails
-│   ├── docs-api.php            # API Documentation
-│   └── docs-domain.php         # Domain Management Guide
-│
-├── config/                     # Configuration
-│   ├── app.php                 # App settings
-│   ├── database.php            # Database connection
-│   └── domains.php             # Domain config
-│
-├── includes/                   # Shared Classes
-│   ├── Auth.php                # Authentication class
-│   └── NameGenerator.php       # Email name generator
-│
-├── css/                        # Stylesheets
-├── js/                         # JavaScript
-├── index.php                   # User interface
-└── .htaccess                   # URL Rewriting
-```
-
-## 🔑 Core Components
-
-### 1. API Router (`api/index.php`)
-Clean RESTful API router:
-- `GET /api` - API info
-- `POST /api/emails` - Create email
-- `GET /api/emails/{email}/messages` - Get messages
-
-### 2. Services Layer
-
-#### BaseService
-- Shared validation logic
-- Common helper methods
-- Parent class cho tất cả services
-
-#### DomainService
-- Validate domains
-- Get domain ID
-- List active domains
-
-#### EmailService
-- Create emails (dùng NameGenerator)
-- Get email data
-- Get messages
-- Calculate expiry dates
-
-### 3. Controllers
-
-#### EmailController
-- Handle HTTP requests
-- Input validation
-- Call services
-- Format responses
-
-### 4. Middleware
-
-#### AuthMiddleware
-- Validate `X-API-KEY`, `X-API-TIMESTAMP`, `X-API-NONCE`, `X-API-SIGNATURE`
-- Centralized authentication + replay protection + rate limit
-
-## 📡 API Endpoints
-
-### External API (for tools)
-
-**Authentication (required for external/integration API calls)**:
+### External API (HMAC)
+Required headers:
 - `X-API-KEY`
-- `X-API-TIMESTAMP` (Unix timestamp)
-- `X-API-NONCE` (random, one-time)
-- `X-API-SIGNATURE` (`HMAC-SHA256(METHOD + "\n" + PATH + "\n" + TIMESTAMP + "\n" + NONCE + "\n" + SHA256(BODY_RAW))`)
-
-#### Create Email
-```http
-POST /api/emails
-Content-Type: application/json
-
-{
-  "count": 1,
-  "name_type": "en",
-  "expiry_type": "forever",
-  "domain": "kaishop.id.vn"
-}
-```
-
-#### Get Messages
-```http
-GET /api/emails/{email}/messages
-```
-
-### User API
-
-All user endpoints are protected by signed headers (key + timestamp + nonce + signature).
-
-#### Check Email
-```http
-GET /api/emails?email=test@kaishop.id.vn
-```
-
-#### Get Messages List
-```http
-GET /api/messages?email=test@kaishop.id.vn
-```
-
-#### Get Message Detail
-```http
-GET /api/messages?id=123
-```
-
-#### Long Polling
-```http
-GET /api/long-poll.php?email_id=1&last_check=2026-01-27%2014:00:00
-```
+- `X-API-TIMESTAMP`
+- `X-API-NONCE`
+- `X-API-SIGNATURE`
 
 ### Admin API
+Required header:
+- `X-ADMIN-ACCESS-KEY`
 
-#### Access Key Check (Admin UI)
-```http
-POST /api/admin/auth.php
-{"password":"<ADMIN_ACCESS_KEY>"}
-```
+Login check endpoint:
+- `POST /api/admin/auth.php` with `{ "password": "<ADMIN_ACCESS_KEY>" }`
 
-#### Auth Check (Admin Access Key Header)
-```http
-GET /api/admin/auth.php
-```
+## API Summary
 
-#### Get Emails
-```http
-GET /api/admin/emails?page=1&limit=50
-```
+### External API (`/api/*.php`)
+- `POST /api/emails.php` create email(s)
+- `GET /api/emails.php?email=user@domain.com` check email exists
+- `DELETE /api/emails.php` delete by email
+- `GET /api/messages.php?email=user@domain.com&limit=30` list messages
+- `GET /api/messages.php?id=123` message detail
+- `DELETE /api/messages.php` delete message(s)
+- `GET /api/long-poll.php?email_id=1&last_check=YYYY-mm-dd HH:ii:ss`
 
-#### Delete Email
-```http
-DELETE /api/admin/emails/{id}
-```
+### Admin API (`/api/admin/*.php`)
+- `GET/POST/DELETE /api/admin/emails.php`
+- `GET/POST/PUT/DELETE /api/admin/domains.php`
+- `GET/DELETE /api/admin/messages.php`
+- `GET /api/admin/stats.php`
+- `GET/POST/DELETE /api/admin/auth.php`
 
-## 🗄️ Database Schema
+## Database (Current)
 
-### Tables
+### `domains`
+- `id`
+- `domain`
+- `is_active`
+- `created_at`
 
-#### `domains`
-- `id` - Primary key
-- `domain` - Domain name (unique)
-- `is_active` - Active status
-- `created_at` - Creation timestamp
+### `emails`
+- `id`
+- `domain_id`
+- `email`
+- `name_type` (`vn|en|custom`)
+- `created_at`
 
-#### `emails`
-- `id` - Primary key
-- `domain_id` - Foreign key → domains
-- `email` - Full email address (unique)
-- `name_type` - Name type (vn/en/custom)
-- `expiry_type` - Expiry type
-- `expires_at` - Expiry datetime
-- `is_expired` - Expired flag
-- `created_at` - Creation timestamp
+### `messages`
+- `id`
+- `email_id`
+- `from_email`
+- `from_name`
+- `subject`
+- `body_text`
+- `body_html`
+- `message_id`
+- `is_read`
+- `received_at`
 
-#### `messages`
-- `id` - Primary key
-- `email_id` - Foreign key → emails
-- `from_email` - Sender email
-- `from_name` - Sender name
-- `subject` - Email subject
-- `body_text` - Plain text body
-- `body_html` - HTML body
-- `is_read` - Read status
-- `received_at` - Received timestamp
+## Setup (Quick)
+1. Configure `.env` from `.env.example`.
+2. Create database.
+3. Import schema from `data.sql`.
+4. Configure web server rewrite rules.
+5. Add domains in admin panel or `domains` table.
 
-## 🔐 Security
-
-### Authentication Methods
-
-1. **External API calls**: API key + timestamp + nonce + HMAC signature headers
-2. **Admin Web UI**: `ADMIN_ACCESS_KEY` qua header `X-ADMIN-ACCESS-KEY` (không dùng cookie)
-3. **Admin API endpoints**: `X-ADMIN-ACCESS-KEY` + rate limit + IP policy
-4. **Webhook endpoint**: `X-WEBHOOK-SECRET` header
-
-### Secret Management
-- Never commit real secrets to source control.
-- Keep all real keys in `.env` only and rotate keys if leaked.
-
-## 🚀 Deployment
-
-### Requirements
-- PHP 8.0+
-- MySQL/MariaDB
-- Apache with mod_rewrite
-- cURL extension
-
-### Setup Steps
-
-1. **Clone/Upload code**
-   ```bash
-   cd c:\xampp\htdocs\
-   # Upload kaiMail folder
-   ```
-
-2. **Create database**
-   ```sql
-   CREATE DATABASE kaishop1_tmail;
-   ```
-
-3. **Import schema**
-   ```bash
-   mysql -u root kaishop1_tmail < database.sql
-   ```
-
-4. **Configure database**
-   Edit `config/database.php`:
-   ```php
-   'host' => 'localhost',
-   'database' => 'kaishop1_tmail',
-   'username' => 'root',
-   'password' => ''
-   ```
-
-5. **Add domains**
-   ```sql
-   INSERT INTO domains (domain, is_active) 
-   VALUES ('kaishop.id.vn', 1);
-   ```
-
-- ✅ Multiple domain support
-- ✅ Email expiry management
-- ✅ Real-time long polling
-- ✅ Admin dashboard
-- ✅ Cloudflare Worker integration
-- ✅ Vietnamese & English name generator
-- ✅ OOP architecture with service layer
-- ✅ CORS support
-- ✅ Error handling
-
-### 🔄 Architecture Improvements (Done)
-
-- ✅ Removed duplicate code
-- ✅ Use NameGenerator.php (no duplicate)
-- ✅ BaseService for shared logic
-- ✅ Clean URL routing
-- ✅ Middleware pattern
-- ✅ Controller/Service separation
-
-## 📝 Code Guidelines
-
-### Service Layer Pattern
-```php
-// BaseService - shared logic
-class BaseService {
-    protected PDO $db;
-    protected function isValidEmail($email) { ... }
-}
-
-// Specific services extend base
-class EmailService extends BaseService {
-    public function createEmail(...) { ... }
-}
-```
-
-### Controller Pattern
-```php
-class EmailController {
-    private EmailService $emailService;
-    
-    public function create() {
-        // 1. Validate input
-        // 2. Call service
-        // 3. Return response
-    }
-}
-```
-
-### Router Pattern
-```php
-// Parse URL → Route to controller → Execute action
-$path = parse_url($_SERVER['REQUEST_URI'])['path'];
-$controller->handleRequest($path, $method);
-```
-
-## 🛠️ Maintenance
-
-### Adding New Domain
-```sql
-INSERT INTO domains (domain, is_active) 
-VALUES ('newdomain.com', 1);
-```
-
-### Viewing Logs
-```bash
-tail -f storage/logs/error.log
-```
-
-### Database Backup
-```bash
-mysqldump -u root kaishop1_tmail > backup.sql
-```
-
-## 📚 Documentation Files
-
-- `API_DOCS.md` - API documentation
-- `README.md` - This file
-- Admin Panel:
-  - `/adminkaishop/docs-api` - API usage guide
-  - `/adminkaishop/docs-domain` - Domain management guide
-
-## 🐛 Troubleshooting
-
-### API returns 404
-- Check `.htaccess` rewrite rules
-- Verify mod_rewrite is enabled
-
-### Email not created
-- Check domain exists in database
-- Verify domain is active
-- Check database connection
-
-### Messages not received
-- Verify Cloudflare Worker is deployed
-- Check webhook URL is correct
-- Verify secret key matches
-
-## 📞 Support
-
-For issues or questions, check:
-1. Error logs in `storage/logs/`
-2. Browser console (for frontend)
-3. API responses (for debugging)
-
----
-
-**Version**: 2.0.0  
-**Last Updated**: 2026-01-27  
-**Author**: KaiShop Development Team
+## Documentation
+- [System docs index](docs/README.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Setup](docs/SETUP.md)
+- [Security](docs/SECURITY.md)

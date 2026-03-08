@@ -8,7 +8,7 @@ $adminName = 'admin';
 $baseUrl = rtrim((string) BASE_URL, '/');
 $apiBase = $baseUrl . '/api';
 
-AdminLayout::begin('Tài liệu Tích hợp API (Bot)', 'docs-api', $adminName);
+AdminLayout::begin('API Integration Docs', 'docs-api', $adminName);
 ?>
 <style>
     .docs-container { max-width: 1100px; margin: 0 auto; color: #334155; }
@@ -17,34 +17,30 @@ AdminLayout::begin('Tài liệu Tích hợp API (Bot)', 'docs-api', $adminName);
     .docs-header p { color: #64748b; font-size: 1rem; }
 
     .section-title { font-size: 1.25rem; font-weight: 600; color: #0f172a; margin: 2rem 0 1rem; border-left: 4px solid #10b981; padding-left: 1rem; }
-    
+
     .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
     .info-card { background: #fff; padding: 1.25rem; border-radius: 0.75rem; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
     .info-card h3 { font-size: 0.875rem; font-weight: 600; text-transform: uppercase; color: #64748b; margin-bottom: 0.5rem; }
     .info-card p { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #059669; font-weight: 600; font-size: 0.95rem; }
 
-    .auth-step { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem; }
-    .auth-step h4 { margin-bottom: 0.75rem; color: #1e293b; font-weight: 600; }
-    
     .code-wrapper { position: relative; margin: 1rem 0; background: #1e293b; border-radius: 0.5rem; padding: 1rem; overflow-x: auto; }
     .code-wrapper pre { margin: 0; color: #e2e8f0; font-family: 'Fira Code', Consolas, monospace; font-size: 0.875rem; line-height: 1.5; }
     .code-lang { position: absolute; top: 0; right: 1rem; font-size: 0.75rem; color: #94a3b8; font-weight: 500; text-transform: uppercase; }
 
-    .endpoint-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; overflow: hidden; margin-bottom: 2rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-    .endpoint-header { padding: 1rem 1.5rem; background: #f1f5f9; display: flex; align-items: center; gap: 1rem; }
+    .endpoint-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; overflow: hidden; margin-bottom: 1.5rem; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06); }
+    .endpoint-header { padding: 1rem 1.5rem; background: #f8fafc; display: flex; align-items: center; gap: 1rem; }
     .method { padding: 0.25rem 0.625rem; border-radius: 0.375rem; font-weight: 700; font-size: 0.75rem; color: white; }
     .method.post { background: #10b981; }
     .method.get { background: #3b82f6; }
     .method.delete { background: #ef4444; }
     .url { font-family: monospace; font-weight: 600; color: #334155; }
-    
-    .endpoint-body { padding: 1.5rem; }
-    .endpoint-description { margin-bottom: 1rem; line-height: 1.6; }
-    
+
+    .endpoint-body { padding: 1.25rem 1.5rem; }
+
     .table-params { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.875rem; }
     .table-params th, .table-params td { text-align: left; padding: 0.75rem; border-bottom: 1px solid #f1f5f9; }
     .table-params th { color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; }
-    
+
     .badge-req { background: #fee2e2; color: #b91c1c; padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-size: 0.7rem; font-weight: 700; }
     .badge-opt { background: #f1f5f9; color: #475569; padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-size: 0.7rem; font-weight: 700; }
 
@@ -54,166 +50,196 @@ AdminLayout::begin('Tài liệu Tích hợp API (Bot)', 'docs-api', $adminName);
 
 <div class="docs-container">
     <header class="docs-header">
-        <h1>Tài liệu Tích hợp API (HMAC Bot)</h1>
-        <p>Hướng dẫn chi tiết cách sử dụng API bên ngoài để xây dựng Bot quản lý mailbox.</p>
+        <h1>API Integration Docs</h1>
+        <p>Single source of truth for external API (HMAC) and admin API usage.</p>
     </header>
 
     <div class="info-grid">
         <div class="info-card">
             <h3>Base URL</h3>
-            <p><?= htmlspecialchars($apiBase) ?></p>
+            <p><?= htmlspecialchars($apiBase, ENT_QUOTES, 'UTF-8') ?></p>
         </div>
         <div class="info-card">
-            <h3>Xác thực</h3>
-            <p>HMAC-SHA256 Signature</p>
+            <h3>External Auth</h3>
+            <p>HMAC (X-API-*)</p>
         </div>
         <div class="info-card">
-            <h3>Content-Type</h3>
-            <p>application/json</p>
+            <h3>Admin Auth</h3>
+            <p>X-ADMIN-ACCESS-KEY</p>
         </div>
     </div>
 
-    <h2 class="section-title">1. Cơ chế Xác thực (Authentication)</h2>
-    <p>Để gọi bất kỳ API nào (trừ Long Polling trang chủ), bạn phải gửi 4 Header bảo mật sau:</p>
-    <table class="table-params" style="margin-bottom: 2rem;">
+    <h2 class="section-title">Auth Headers</h2>
+    <table class="table-params" style="margin-bottom: 1.25rem;">
         <thead>
-            <tr>
-                <th>Header</th>
-                <th>Mô tả</th>
-            </tr>
+            <tr><th>Header</th><th>Used By</th><th>Notes</th></tr>
         </thead>
         <tbody>
-            <tr>
-                <td><code>X-API-KEY</code></td>
-                <td>Giá trị <code>API_ACCESS_KEY</code> trong cấu hình server của bạn.</td>
-            </tr>
-            <tr>
-                <td><code>X-API-TIMESTAMP</code></td>
-                <td>Unix Timestamp hiện tại (Server lệch tối đa 5 phút).</td>
-            </tr>
-            <tr>
-                <td><code>X-API-NONCE</code></td>
-                <td>Một chuỗi ngẫu nhiên duy nhất cho mỗi Request (Chống Replay Attack).</td>
-            </tr>
-            <tr>
-                <td><code>X-API-SIGNATURE</code></td>
-                <td>Chữ ký được tính toán từ các thành phần trên.</td>
-            </tr>
+            <tr><td><code>X-API-KEY</code></td><td>External API</td><td>Public access key.</td></tr>
+            <tr><td><code>X-API-TIMESTAMP</code></td><td>External API</td><td>Unix timestamp.</td></tr>
+            <tr><td><code>X-API-NONCE</code></td><td>External API</td><td>Unique value per request.</td></tr>
+            <tr><td><code>X-API-SIGNATURE</code></td><td>External API</td><td><code>HMAC-SHA256</code> signature.</td></tr>
+            <tr><td><code>X-ADMIN-ACCESS-KEY</code></td><td>Admin API</td><td>Admin panel/API secret key.</td></tr>
         </tbody>
     </table>
 
-    <div class="auth-step">
-        <h4>Cách tính X-API-SIGNATURE</h4>
-        <p><strong>Bước 1:</strong> Tạo chuỗi Payload theo cấu trúc (nối bằng dấu xuống dòng <code>\n</code>):</p>
-        <div class="code-wrapper">
-            <pre>PAYLOAD = METHOD + "\n" + PATH + "\n" + TIMESTAMP + "\n" + NONCE + "\n" + SHA256(BODY_RAW)</pre>
-        </div>
-        <p><strong>Bước 2:</strong> Dùng <code>API_SECRET_KEY</code> để ký chuỗi trên bằng thuật toán <code>HMAC-SHA256</code>.</p>
+    <div class="code-wrapper">
+        <div class="code-lang">HMAC Signature Base</div>
+        <pre>METHOD + "\n" + PATH + "\n" + TIMESTAMP + "\n" + NONCE + "\n" + SHA256(BODY_RAW)</pre>
     </div>
 
-    <h2 class="section-title">2. Ví dụ Code cho Bot</h2>
-    
-    <div style="margin-bottom: 2rem;">
-        <div class="code-wrapper">
-            <div class="code-lang">Python (requests)</div>
-<pre>import hmac, hashlib, time, requests, json
+    <h2 class="section-title">1. External API (HMAC)</h2>
 
-API_KEY = "your_access_key"
-SECRET_KEY = "your_secret_key"
-BASE_URL = "<?= htmlspecialchars($baseUrl) ?>"
-
-def call_api(method, path, body_data=None):
-    ts = str(int(time.time()))
-    nonce = "rand_" + ts
-    body_str = json.dumps(body_data) if body_data else ""
-    body_hash = hashlib.sha256(body_str.encode()).hexdigest()
-    
-    # Tạo payload và ký
-    payload = f"{method.upper()}\n{path}\n{ts}\n{nonce}\n{body_hash}"
-    sig = hmac.new(SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()
-
-    headers = {
-        "Content-Type": "application/json",
-        "X-API-KEY": API_KEY,
-        "X-API-TIMESTAMP": ts,
-        "X-API-NONCE": nonce,
-        "X-API-SIGNATURE": sig
-    }
-    
-    url = BASE_URL + path
-    if method.upper() == "GET":
-        return requests.get(url, headers=headers)
-    return requests.request(method, url, headers=headers, data=body_str)</pre>
-        </div>
-    </div>
-
-    <h2 class="section-title">3. Danh sách Endpoints</h2>
-
-    <!-- POST /api/emails.php -->
     <div class="endpoint-card">
         <div class="endpoint-header">
             <span class="method post">POST</span>
             <span class="url">/api/emails.php</span>
         </div>
         <div class="endpoint-body">
-            <p class="endpoint-description">Tạo một hoặc nhiều Mailbox mới đồng loạt.</p>
-            <h4>Request Body (JSON):</h4>
+            <p>Create one or many mailboxes.</p>
             <table class="table-params">
                 <thead>
-                    <tr><th>Trường</th><th>Kiểu</th><th>Yêu cầu</th><th>Mô tả</th></tr>
+                    <tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
                 </thead>
                 <tbody>
-                    <tr><td><code>domain</code></td><td>string</td><td><span class="badge-req">Bắt buộc</span></td><td>Tên miền (phải đang Active).</td></tr>
-                    <tr><td><code>name_type</code></td><td>string</td><td><span class="badge-opt">Tùy chọn</span></td><td><code>en</code> (mặc định), <code>vn</code> hoặc <code>custom</code>.</td></tr>
-                    <tr><td><code>quantity</code></td><td>integer</td><td><span class="badge-opt">Tùy chọn</span></td><td>Số lượng mail cần tạo (mặc định 1).</td></tr>
+                    <tr><td><code>domain</code></td><td>string</td><td><span class="badge-req">Required</span></td><td>Must exist and be active.</td></tr>
+                    <tr><td><code>name_type</code></td><td>string</td><td><span class="badge-opt">Optional</span></td><td><code>en</code> (default), <code>vn</code>, <code>custom</code>.</td></tr>
+                    <tr><td><code>quantity</code></td><td>integer</td><td><span class="badge-opt">Optional</span></td><td>Range: <code>1..10</code>. Default <code>1</code>.</td></tr>
+                    <tr><td><code>email</code></td><td>string</td><td><span class="badge-opt">Optional</span></td><td>Required when <code>name_type=custom</code>; lowercased by server.</td></tr>
                 </tbody>
             </table>
             <div class="code-wrapper">
-                <div class="code-lang">Example Request Body</div>
-                <pre>{ "domain": "kaishop.id.vn", "quantity": 10 }</pre>
+                <div class="code-lang">Example Body</div>
+                <pre>{ "domain": "kaishop.id.vn", "name_type": "vn", "quantity": 5 }</pre>
             </div>
         </div>
     </div>
 
-    <!-- GET /api/messages.php -->
     <div class="endpoint-card">
         <div class="endpoint-header">
             <span class="method get">GET</span>
-            <span class="url">/api/messages.php</span>
+            <span class="url">/api/emails.php?email=user@domain.com</span>
         </div>
         <div class="endpoint-body">
-            <p class="endpoint-description">Lấy danh sách thư hoặc nội dung chi tiết thư.</p>
-            <h4>Query Parameters:</h4>
-            <table class="table-params">
-                <thead>
-                    <tr><th>Tham số</th><th>Mô tả</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td><code>email</code></td><td>Tìm danh sách thư của email (ví dụ: <code>abc@domain.com</code>).</td></tr>
-                    <tr><td><code>id</code></td><td>ID của thư cụ thể để xem toàn bộ nội dung (JSON/HTML).</td></tr>
-                    <tr><td><code>limit</code></td><td>Số lượng thư lấy về (mặc định 25).</td></tr>
-                </tbody>
-            </table>
+            <p>Check if mailbox exists and get basic metadata.</p>
         </div>
     </div>
 
-    <!-- DELETE /api/messages.php -->
+    <div class="endpoint-card">
+        <div class="endpoint-header">
+            <span class="method delete">DELETE</span>
+            <span class="url">/api/emails.php</span>
+        </div>
+        <div class="endpoint-body">
+            <p>Delete mailbox by full email.</p>
+            <div class="code-wrapper">
+                <div class="code-lang">Example Body</div>
+                <pre>{ "email": "user@kaishop.id.vn" }</pre>
+            </div>
+        </div>
+    </div>
+
+    <div class="endpoint-card">
+        <div class="endpoint-header">
+            <span class="method get">GET</span>
+            <span class="url">/api/messages.php?email=user@domain.com&amp;limit=30</span>
+        </div>
+        <div class="endpoint-body">
+            <p>List messages for a mailbox.</p>
+        </div>
+    </div>
+
+    <div class="endpoint-card">
+        <div class="endpoint-header">
+            <span class="method get">GET</span>
+            <span class="url">/api/messages.php?id=123</span>
+        </div>
+        <div class="endpoint-body">
+            <p>Get message detail by message ID.</p>
+        </div>
+    </div>
+
     <div class="endpoint-card">
         <div class="endpoint-header">
             <span class="method delete">DELETE</span>
             <span class="url">/api/messages.php</span>
         </div>
         <div class="endpoint-body">
-            <p class="endpoint-description">Xóa thư trong hệ thống.</p>
+            <p>Delete selected messages or all messages in a mailbox.</p>
             <div class="code-wrapper">
-                <div class="code-lang">Example Body (Delete all for email)</div>
-                <pre>{ "email": "abc@domain.com", "delete_all": true }</pre>
+                <div class="code-lang">Delete Selected</div>
+                <pre>{ "email": "user@kaishop.id.vn", "ids": [101, 102] }</pre>
+            </div>
+            <div class="code-wrapper">
+                <div class="code-lang">Delete All</div>
+                <pre>{ "email": "user@kaishop.id.vn", "delete_all": true }</pre>
+            </div>
+        </div>
+    </div>
+
+    <div class="endpoint-card">
+        <div class="endpoint-header">
+            <span class="method get">GET</span>
+            <span class="url">/api/long-poll.php?email_id=1&amp;last_check=YYYY-mm-dd HH:ii:ss</span>
+        </div>
+        <div class="endpoint-body">
+            <p>Long polling for near real-time message updates.</p>
+        </div>
+    </div>
+
+    <h2 class="section-title">2. Admin API (X-ADMIN-ACCESS-KEY)</h2>
+
+    <div class="endpoint-card">
+        <div class="endpoint-header">
+            <span class="method post">POST</span>
+            <span class="url">/api/admin/emails.php</span>
+        </div>
+        <div class="endpoint-body">
+            <p>Create emails from admin channel.</p>
+            <table class="table-params">
+                <thead>
+                    <tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>domain</code></td><td>string</td><td><span class="badge-req">Required</span></td><td>Target domain.</td></tr>
+                    <tr><td><code>name_type</code></td><td>string</td><td><span class="badge-opt">Optional</span></td><td><code>vn</code>, <code>en</code>, <code>custom</code>.</td></tr>
+                    <tr><td><code>quantity</code></td><td>integer</td><td><span class="badge-opt">Optional</span></td><td>Range: <code>1..50</code>. Default <code>1</code>.</td></tr>
+                    <tr><td><code>email</code></td><td>string</td><td><span class="badge-opt">Optional</span></td><td>When custom, allowed chars: <code>[A-Za-z0-9._-]</code>, lowercased.</td></tr>
+                </tbody>
+            </table>
+            <div class="code-wrapper">
+                <div class="code-lang">Example Body</div>
+                <pre>{ "name_type": "custom", "email": "Admin.Test", "domain": "kaishop.id.vn", "quantity": 2 }</pre>
+            </div>
+        </div>
+    </div>
+
+    <div class="endpoint-card">
+        <div class="endpoint-header">
+            <span class="method get">GET</span>
+            <span class="url">/api/admin/emails.php?page=1&amp;limit=13&amp;search=&amp;domain=&amp;no_message=1</span>
+        </div>
+        <div class="endpoint-body">
+            <p>List emails with pagination and optional filters (<code>search</code>, <code>domain</code>, <code>no_message=1</code>).</p>
+        </div>
+    </div>
+
+    <div class="endpoint-card">
+        <div class="endpoint-header">
+            <span class="method delete">DELETE</span>
+            <span class="url">/api/admin/emails.php</span>
+        </div>
+        <div class="endpoint-body">
+            <p>Delete selected emails by ID list.</p>
+            <div class="code-wrapper">
+                <div class="code-lang">Example Body</div>
+                <pre>{ "ids": [11, 12, 13] }</pre>
             </div>
         </div>
     </div>
 
     <div class="hint-box">
-        <strong>Lưu ý:</strong> API hệ thống sử dụng <strong>Rate Limiting</strong>. Mỗi IP/Key sẽ có giới hạn số request nhất định một phút (mặc định 120). Nếu vượt quá bạn sẽ nhận mã lỗi <code>429</code>.
+        <strong>Rate Limit:</strong> API endpoints are rate-limited. If exceeded, server returns <code>429</code>.
     </div>
 </div>
 

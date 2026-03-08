@@ -27,10 +27,10 @@ try {
     $totalEmails = $db->query("SELECT COUNT(*) FROM emails")->fetchColumn();
 
     // Active emails
-    $activeEmails = $db->query("SELECT COUNT(*) FROM emails WHERE is_expired = 0")->fetchColumn();
+    $activeEmails = $totalEmails;
 
     // Expired emails
-    $expiredEmails = $db->query("SELECT COUNT(*) FROM emails WHERE is_expired = 1")->fetchColumn();
+    $expiredEmails = 0;
 
     // Total messages
     $totalMessages = $db->query("SELECT COUNT(*) FROM messages")->fetchColumn();
@@ -38,13 +38,8 @@ try {
     // Unread messages
     $unreadMessages = $db->query("SELECT COUNT(*) FROM messages WHERE is_read = 0")->fetchColumn();
 
-    // Emails by expiry type
-    $byExpiry = $db->query("
-        SELECT expiry_type, COUNT(*) as count 
-        FROM emails 
-        WHERE is_expired = 0
-        GROUP BY expiry_type
-    ")->fetchAll();
+    // Legacy field kept for backward compatibility with dashboard consumers.
+    $byExpiry = [];
 
     // Recent emails (last 7 days)
     $recentEmails = $db->query("
@@ -57,15 +52,6 @@ try {
         SELECT COUNT(*) FROM messages 
         WHERE received_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
     ")->fetchColumn();
-
-    // Check for newly expired emails
-    $db->exec("
-        UPDATE emails 
-        SET is_expired = 1 
-        WHERE expires_at IS NOT NULL 
-        AND expires_at < NOW() 
-        AND is_expired = 0
-    ");
 
     jsonResponse([
         'total_emails' => (int) $totalEmails,

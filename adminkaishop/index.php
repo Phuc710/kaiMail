@@ -96,8 +96,6 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
 
     <div class="filter-group">
         <select id="statusFilter" class="select-filter">
-            <option value="active">Hoạt động</option>
-            <option value="expired">Đã hết hạn</option>
             <option value="all">Tất cả trạng thái</option>
         </select>
 
@@ -186,9 +184,10 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
                     <p class="field-note">Chỉ dùng chữ cái, số, dấu chấm, gạch ngang và gạch dưới.</p>
                 </div>
 
-                <div class="form-group">
+                <div class="form-group" id="quantityGroup">
                     <label for="emailQuantity">Số lượng (Tối đa 50)</label>
-                    <input type="number" id="emailQuantity" name="quantity" min="1" max="50" value="1" required>
+                    <input type="number" id="emailQuantity" name="quantity" min="1" max="50" value="1"
+                        class="custom-number-input">
                 </div>
 
                 <div class="form-group">

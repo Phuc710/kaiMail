@@ -17,7 +17,6 @@ class EmailService
         $db = getDB();
 
         $nameType = (string) ($options['name_type'] ?? 'vn');
-        $expiryType = 'forever';
         $customEmail = strtolower(trim((string) ($options['email'] ?? '')));
         $domain = strtolower(trim((string) ($options['domain'] ?? '')));
         $quantity = min(max(1, (int) ($options['quantity'] ?? 1)), 50);
@@ -27,8 +26,8 @@ class EmailService
             return [];
         }
 
-        if ($nameType === 'custom' && !preg_match('/^[a-z0-9\-\._]+$/', $customEmail)) {
-            $errors[] = 'Email can only contain lowercase letters, numbers, dot, hyphen and underscore';
+        if ($nameType === 'custom' && !preg_match('/^[A-Za-z0-9\-\._]+$/', $customEmail)) {
+            $errors[] = 'Email can only contain letters, numbers, dot, hyphen and underscore';
             return [];
         }
 
@@ -80,23 +79,18 @@ class EmailService
                 continue;
             }
 
-            // All generated emails are permanent.
-            $expiresAt = null;
-
             try {
                 // Insert
                 $stmt = $db->prepare("
-                    INSERT INTO emails (domain_id, email, name_type, expiry_type, expires_at)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO emails (domain_id, email, name_type)
+                    VALUES (?, ?, ?)
                 ");
-                $stmt->execute([$domainId, $email, $actualNameType, $expiryType, $expiresAt]);
+                $stmt->execute([$domainId, $email, $actualNameType]);
 
                 $createdEmails[] = [
                     'id' => $db->lastInsertId(),
                     'email' => $email,
-                    'name_type' => $actualNameType,
-                    'expiry_type' => $expiryType,
-                    'expires_at' => $expiresAt
+                    'name_type' => $actualNameType
                 ];
             } catch (PDOException $e) {
                 $dbMessage = strtolower((string) $e->getMessage());
@@ -120,15 +114,11 @@ class EmailService
     /**
      * Delete emails
      */
-    public static function deleteEmails(array $ids, bool $deleteAll = false, string $filter = ''): int
+    public static function deleteEmails(array $ids): int
     {
         $db = getDB();
 
-        if ($deleteAll && $filter === 'expired') {
-            $stmt = $db->prepare("DELETE FROM emails WHERE is_expired = 1");
-            $stmt->execute();
-            return $stmt->rowCount();
-        } elseif (!empty($ids)) {
+        if (!empty($ids)) {
             $ids = array_map('intval', $ids);
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
             $sql = "DELETE FROM emails WHERE id IN ($placeholders)";
@@ -138,10 +128,5 @@ class EmailService
         }
 
         return 0;
-    }
-
-    private static function calculateExpiry($type)
-    {
-        return null;
     }
 }

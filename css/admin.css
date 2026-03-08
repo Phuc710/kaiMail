@@ -138,6 +138,26 @@ a {
     box-shadow: 0 0 0 3px rgba(21, 115, 71, 0.16);
 }
 
+.custom-number-input {
+    width: 60px;
+    height: 42px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: #fff;
+    color: var(--color-text);
+    padding: 10px;
+    font-family: var(--user-btn-font-family);
+    font-size: 1rem;
+    text-align: center;
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.custom-number-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(21, 115, 71, 0.16);
+}
+
 .field-note {
     margin-top: 6px;
     color: var(--color-muted);
@@ -572,16 +592,6 @@ a {
     padding: 4px 10px;
     font-size: 0.78rem;
     font-weight: 600;
-}
-
-.badge-forever {
-    background: var(--color-primary-soft);
-    color: var(--color-primary);
-}
-
-.badge-expired {
-    background: var(--color-danger-soft);
-    color: #b42323;
 }
 
 .unread-badge {
