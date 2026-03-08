@@ -182,14 +182,13 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
 
                 <div class="form-group hidden" id="customEmailGroup">
                     <label for="customEmail">Tên email tùy chỉnh (không gồm @domain)</label>
-                    <input type="text" id="customEmail" placeholder="vi-du: admin.test_01" pattern="[A-Za-z0-9\-\._]+">
-                    <p class="field-note">Hệ thống sẽ tự động đổi về chữ thường. Được phép chữ, số, dấu chấm, gạch ngang và gạch dưới.</p>
+                    <input type="text" id="customEmail" placeholder="vi-du: support123" pattern="[A-Za-z0-9\-\._]+">
+                    <p class="field-note">Chỉ dùng chữ cái, số, dấu chấm, gạch ngang và gạch dưới.</p>
                 </div>
 
                 <div class="form-group">
-                    <label for="emailQuantity">Số lượng</label>
-                    <input type="number" id="emailQuantity" min="1" max="50" value="1" required>
-                    <p class="field-note">Tạo tối đa 50 email một lần.</p>
+                    <label for="emailQuantity">Số lượng (Tối đa 50)</label>
+                    <input type="number" id="emailQuantity" name="quantity" min="1" max="50" value="1" required>
                 </div>
 
                 <div class="form-group">

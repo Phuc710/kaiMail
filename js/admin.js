@@ -535,7 +535,7 @@ class AdminCore {
             submitBtn.disabled = true;
             submitBtn.textContent = "Đang tạo...";
 
-            const payload = { name_type: nameType, domain: selectedDomain, quantity };
+            const payload = { name_type: nameType, domain: selectedDomain, quantity: quantity };
             if (nameType === "custom") {
                 payload.email = customEmail;
             }
