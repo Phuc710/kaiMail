@@ -133,14 +133,6 @@ final class AdminSecurity
         if (ADMIN_REQUIRE_HTTPS && !self::isHttpsRequest() && !self::isLocalDevelopmentRequest()) {
             self::deny(403, 'Bat buoc dung HTTPS');
         }
-
-        if (API_STRICT_MODE && !self::isLocalDevelopmentRequest() && trim((string) ADMIN_ALLOWED_IPS) === '') {
-            self::deny(403, 'API_STRICT_MODE yeu cau khai bao ADMIN_ALLOWED_IPS');
-        }
-
-        if (!self::isIpAllowed(self::getClientIp())) {
-            self::deny(403, 'IP khong duoc phep');
-        }
     }
 
     private static function isHttpsRequest(): bool
@@ -195,69 +187,6 @@ final class AdminSecurity
         }
 
         return trim((string) ($_SERVER['REMOTE_ADDR'] ?? ''));
-    }
-
-    private static function isIpAllowed(string $ip): bool
-    {
-        if (ADMIN_ALLOWED_IPS === '') {
-            return true;
-        }
-
-        if ($ip === '') {
-            return false;
-        }
-
-        $entries = array_filter(array_map('trim', explode(',', ADMIN_ALLOWED_IPS)));
-        if (empty($entries)) {
-            return true;
-        }
-
-        foreach ($entries as $entry) {
-            if ($entry === $ip) {
-                return true;
-            }
-
-            if (str_contains($entry, '/') && self::ipInCidr($ip, $entry)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static function ipInCidr(string $ip, string $cidr): bool
-    {
-        [$subnet, $maskBits] = array_pad(explode('/', $cidr, 2), 2, null);
-        if ($subnet === null || $maskBits === null) {
-            return false;
-        }
-
-        $ipBin = @inet_pton($ip);
-        $subnetBin = @inet_pton($subnet);
-        $maskBits = (int) $maskBits;
-
-        if ($ipBin === false || $subnetBin === false || strlen($ipBin) !== strlen($subnetBin)) {
-            return false;
-        }
-
-        $bytesCount = strlen($ipBin);
-        $fullBytes = intdiv($maskBits, 8);
-        $remainingBits = $maskBits % 8;
-
-        for ($i = 0; $i < $fullBytes; $i++) {
-            if ($ipBin[$i] !== $subnetBin[$i]) {
-                return false;
-            }
-        }
-
-        if ($remainingBits > 0 && $fullBytes < $bytesCount) {
-            $mask = (~((1 << (8 - $remainingBits)) - 1)) & 0xFF;
-            if ((ord($ipBin[$fullBytes]) & $mask) !== (ord($subnetBin[$fullBytes]) & $mask)) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private static function deny(int $statusCode, string $message, array $extra = []): void

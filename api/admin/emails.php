@@ -86,17 +86,15 @@ try {
         $stmt->execute($params);
         $total = $stmt->fetchColumn();
 
-        // Get emails with message count
+        // Get emails with counts using subqueries (avoid GROUP BY ONLY_FULL_GROUP_BY issues)
         $sql = "
             SELECT e.*, 
                    UNIX_TIMESTAMP(e.created_at) as created_ts,
                    UNIX_TIMESTAMP(e.expires_at) as expires_ts,
-                   COUNT(m.id) as message_count,
-                   SUM(CASE WHEN m.is_read = 0 THEN 1 ELSE 0 END) as unread_count
+                   (SELECT COUNT(*) FROM messages m WHERE m.email_id = e.id) as message_count,
+                   (SELECT COUNT(*) FROM messages m WHERE m.email_id = e.id AND m.is_read = 0) as unread_count
             FROM emails e
-            LEFT JOIN messages m ON e.id = m.email_id
             $whereClause
-            GROUP BY e.id
             ORDER BY e.created_at DESC
             LIMIT $limit OFFSET $offset
         ";
@@ -108,7 +106,7 @@ try {
             'total' => (int) $total,
             'page' => $page,
             'limit' => $limit,
-            'pages' => ceil($total / $limit),
+            'pages' => ceil((int) $total / $limit),
             'emails' => $emails,
             'server_time' => date('Y-m-d H:i:s')
         ]);
