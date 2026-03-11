@@ -105,6 +105,13 @@ try {
 
     if ($method === 'POST') {
         $data = getJsonInput();
+        if (isset($data['action']) && $data['action'] === 'toggle_done') {
+            $id = (int)($data['id'] ?? 0);
+            $is_done = (int)($data['is_done'] ?? 0);
+            $stmt = $db->prepare("UPDATE emails SET is_done = ? WHERE id = ?");
+            $stmt->execute([$is_done, $id]);
+            jsonResponse(['success' => true]);
+        }
         $errors = [];
         $emails = EmailService::createEmails($data, $errors);
 

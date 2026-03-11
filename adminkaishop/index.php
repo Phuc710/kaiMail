@@ -131,6 +131,7 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
                     <input type="checkbox" id="selectAll">
                 </th>
                 <th>Email</th>
+                <th>Done</th>
                 <th>Tin nhắn</th>
                 <th>Tạo lúc</th>
                 <th class="col-actions">Thao tác</th>

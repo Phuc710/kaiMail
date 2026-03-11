@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS emails (
     domain_id INT NOT NULL,
     email VARCHAR(255) NOT NULL UNIQUE,
     name_type ENUM('vn', 'en', 'custom') DEFAULT 'en',
+    is_done TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
     INDEX idx_email (email),

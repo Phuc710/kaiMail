@@ -187,6 +187,7 @@ class AdminDashboardPage {
             const emailAddress = String(email.email || "");
             const emailEncoded = encodeURIComponent(emailAddress);
             const checked = this.selectedIds.has(id) ? "checked" : "";
+            const isDoneChecked = Number(email.is_done || 0) === 1 ? "checked" : "";
             const unreadCount = Number(email.unread_count || 0);
             const createdAt = email.created_at ? this.core.formatDateTimeVN(email.created_at) : "-";
             const messageCount = Number(email.message_count || 0);
@@ -196,6 +197,7 @@ class AdminDashboardPage {
                     <td class="col-check">
                         <input type="checkbox" class="email-checkbox" data-id="${id}" ${checked}>
                     </td>
+                    
                     <td>
                         <div class="email-cell">
                             <span class="email-address">${this.core.escapeHtml(emailAddress)}</span>
@@ -206,6 +208,11 @@ class AdminDashboardPage {
                                 </svg>
                             </button>
                         </div>
+                    </td>
+                    <td>
+                        <label style="display: flex;  cursor: pointer; height: 100%;">
+                            <input type="checkbox" class="status-checkbox" data-id="${id}" ${isDoneChecked}>
+                        </label>
                     </td>
                     <td>
                         <button class="btn-link" data-action="view-messages" data-email-id="${id}" data-email="${emailEncoded}">
@@ -298,6 +305,12 @@ class AdminDashboardPage {
     }
 
     handleTableChange(event) {
+        const statusCheckbox = event.target.closest(".status-checkbox");
+        if (statusCheckbox) {
+            this.toggleEmailStatus(statusCheckbox);
+            return;
+        }
+
         const checkbox = event.target.closest(".email-checkbox");
         if (!checkbox) return;
 
@@ -329,6 +342,30 @@ class AdminDashboardPage {
 
         if (selectAll) {
             selectAll.checked = totalCheckboxes > 0 && checkedCount === totalCheckboxes;
+        }
+    }
+
+    async toggleEmailStatus(checkbox) {
+        const id = Number(checkbox.getAttribute("data-id") || "0");
+        const isDone = checkbox.checked ? 1 : 0;
+        
+        try {
+            const { ok, data } = await this.core.postJson("/api/admin/emails.php", {
+                action: "toggle_done",
+                id: id,
+                is_done: isDone
+            });
+
+            if (!ok) {
+                checkbox.checked = !checkbox.checked;
+                this.core.showToast(data?.error || "Không thể cập nhật trạng thái", "error");
+                return;
+            }
+            
+            this.core.showToast("Cập nhật trạng thái thành công", "success");
+        } catch (error) {
+            checkbox.checked = !checkbox.checked;
+            this.core.showToast("Lỗi kết nối máy chủ", "error");
         }
     }
 
