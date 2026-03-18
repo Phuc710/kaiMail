@@ -605,8 +605,8 @@ class AdminDashboardPage {
 
     async handleCheckerSubmit(event) {
         event.preventDefault();
-        const keyword = document.getElementById("checkerKeyword").val().trim();
-        const days = document.getElementById("checkerDays").val();
+        const keyword = document.getElementById("checkerKeyword").value.trim();
+        const days = document.getElementById("checkerDays").value;
         const resultsContainer = document.getElementById("checkerResults");
 
         if (!keyword) return;
