@@ -647,7 +647,7 @@ class AdminDashboardPage {
             resultsContainer.innerHTML = `
                 <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem;">
                     <span style="font-weight: 600; color: #0f172a;">Tìm thấy ${data.count} kết quả</span>
-                    <span style="font-size: 0.85rem; color: #8b5cf6; background: #ede9fe; padding: 2px 8px; border-radius: 12px; font-weight: 600;">⚡ ${data.execution_time}</span>
+                    <span style="font-size: 0.85rem; color: #ffffff; background: #0f172a; padding: 2px 10px; border-radius: 12px; font-weight: 600;">⚡ ${data.execution_time}</span>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                     ${data.results.map(r => `
@@ -669,7 +669,7 @@ class AdminDashboardPage {
                                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                                         <span style="font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase;">Message JSON</span>
                                         <button class="btn-icon" data-action="view-messages" data-email-id="${r.email_id}" data-email="${encodeURIComponent(r.email)}" title="Mở hộp thư đầy đủ" style="background: #ffffff; width: 28px; height: 28px; border: 1px solid #e2e8f0;">
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="2">
                                                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                                                 <circle cx="12" cy="12" r="3"></circle>
                                             </svg>

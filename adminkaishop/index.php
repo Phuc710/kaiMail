@@ -23,7 +23,7 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
         <p>Theo dõi, tạo mới và xử lý email trong hệ thống KaiMail.</p>
     </div>
     <div class="page-actions">
-        <button id="fastCheckerBtn" class="btn" style="background: #8b5cf6; color: white;" type="button"
+        <button id="fastCheckerBtn" class="btn" style="background: #0f172a; color: white;" type="button"
             data-modal-open="checkerModal">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 stroke-linecap="round" stroke-linejoin="round">
@@ -314,7 +314,7 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
     <div class="modal-content modal-lg">
         <div class="modal-header" style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
             <div>
-                <h2 style="color: #4c1d95; font-size: 1.25rem; display: flex; align-items: center; gap: 0.5rem;">
+                <h2 style="color: #0f172a; font-size: 1.25rem; display: flex; align-items: center; gap: 0.5rem;">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                     </svg>
@@ -335,13 +335,13 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
                 style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: end; margin-bottom: 1.5rem;">
                 <div class="form-group" style="margin: 0;">
                     <label for="checkerKeyword">Từ khóa cần quét (VD: deactivating, openai)</label>
-                    <input type="text" id="checkerKeyword" value="deactivating" required style="border-color: #8b5cf6;">
+                    <input type="text" id="checkerKeyword" value="deactivating" required style="border-color: #0f172a;">
                 </div>
                 <div class="form-group" style="margin: 0;">
                     <label for="checkerDays">Số ngày</label>
                     <input type="number" id="checkerDays" value="7" min="1" max="30" style="width: 80px;">
                 </div>
-                <button type="submit" class="btn" style="background: #8b5cf6; color: white; height: 42px;">
+                <button type="submit" class="btn" style="background: #0f172a; color: white; height: 42px;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="11" cy="11" r="8"></circle>
                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -362,8 +362,8 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
 
 <style>
     .checker-result-item.active {
-        border-color: #8b5cf6 !important;
-        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.1);
+        border-color: #0f172a !important;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
     }
 
     .checker-result-item.active .checker-detail {
@@ -373,11 +373,11 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
 
     .checker-result-item.active .chevron {
         transform: rotate(180deg);
-        stroke: #8b5cf6 !important;
+        stroke: #0f172a !important;
     }
 
     .checker-result-item:hover {
-        border-color: #c084fc !important;
+        border-color: #334155 !important;
         background: #fafafa !important;
     }
 
