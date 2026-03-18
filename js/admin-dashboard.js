@@ -649,21 +649,39 @@ class AdminDashboardPage {
                     <span style="font-weight: 600; color: #0f172a;">Tìm thấy ${data.count} kết quả</span>
                     <span style="font-size: 0.85rem; color: #8b5cf6; background: #ede9fe; padding: 2px 8px; border-radius: 12px; font-weight: 600;">⚡ ${data.execution_time}</span>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                     ${data.results.map(r => `
-                        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 0.375rem; padding: 0.75rem; display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <div style="font-weight: 600; color: #1e293b; margin-bottom: 0.25rem;">${this.core.escapeHtml(r.email)}</div>
-                                <div style="font-size: 0.85rem; color: #64748b;">${this.core.escapeHtml(r.subject)}</div>
-                            </div>
-                            <div style="text-align: right;">
-                                <div style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.5rem;">${this.core.formatDateTimeVN(r.received_at)}</div>
-                                <button class="btn-icon" data-action="view-messages" data-email-id="${r.email_id}" data-email="${encodeURIComponent(r.email)}" title="Xem hộp thư" style="background: #f1f5f9; width: 28px; height: 28px;">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2">
-                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                        <circle cx="12" cy="12" r="3"></circle>
+                        <div class="checker-result-item" style="background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; overflow: hidden; transition: all 0.2s ease;">
+                            <div style="padding: 0.75rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="this.parentElement.classList.toggle('active')">
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-weight: 700; color: #1e293b; margin-bottom: 0.25rem; font-size: 0.95rem;">${this.core.escapeHtml(r.email)}</div>
+                                    <div style="font-size: 0.85rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${this.core.escapeHtml(r.subject || '(No subject)')}</div>
+                                </div>
+                                <div style="text-align: right; margin-left: 1rem; display: flex; align-items: center; gap: 0.75rem;">
+                                    <div style="font-size: 0.8rem; color: #94a3b8; white-space: nowrap;">${this.core.formatDateTimeVN(r.received_at)}</div>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" class="chevron" style="transition: transform 0.2s;">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
                                     </svg>
-                                </button>
+                                </div>
+                            </div>
+                            <div class="checker-detail" style="max-height: 0; overflow: hidden; transition: all 0.3s ease-in-out; background: #f1f5f9; border-top: 0px solid #e2e8f0;">
+                                <div style="padding: 1rem;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                        <span style="font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase;">Message JSON</span>
+                                        <button class="btn-icon" data-action="view-messages" data-email-id="${r.email_id}" data-email="${encodeURIComponent(r.email)}" title="Mở hộp thư đầy đủ" style="background: #ffffff; width: 28px; height: 28px; border: 1px solid #e2e8f0;">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2">
+                                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                                <circle cx="12" cy="12" r="3"></circle>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <pre style="margin: 0; padding: 0.75rem; background: #1e293b; color: #e2e8f0; border-radius: 0.375rem; font-size: 0.8rem; overflow-x: auto; font-family: 'JetBrains Mono', 'Fira Code', monospace;">${JSON.stringify({
+                id: r.message_id,
+                subject: r.subject,
+                received_at: r.received_at,
+                body_snippet: (r.body_text || "").substring(0, 500) + (r.body_text?.length > 500 ? "..." : "")
+            }, null, 2)}</pre>
+                                </div>
                             </div>
                         </div>
                     `).join('')}

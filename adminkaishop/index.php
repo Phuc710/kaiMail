@@ -359,5 +359,36 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
         </div>
     </div>
 </div>
+
+<style>
+    .checker-result-item.active {
+        border-color: #8b5cf6 !important;
+        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.1);
+    }
+
+    .checker-result-item.active .checker-detail {
+        max-height: 1000px !important;
+        border-top: 1px solid #e2e8f0 !important;
+    }
+
+    .checker-result-item.active .chevron {
+        transform: rotate(180deg);
+        stroke: #8b5cf6 !important;
+    }
+
+    .checker-result-item:hover {
+        border-color: #c084fc !important;
+        background: #fafafa !important;
+    }
+
+    .spinner-sm {
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(255, 255, 255, .3);
+        border-radius: 50%;
+        border-top-color: #fff;
+        animation: spin 1s linear infinite;
+    }
+</style>
 <?php
 AdminLayout::end(['/js/admin-dashboard.js']);

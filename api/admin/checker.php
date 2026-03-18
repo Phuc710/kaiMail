@@ -77,7 +77,9 @@ try {
             e.email,
             m.subject,
             m.received_at,
-            m.id as message_id
+            m.id as message_id,
+            m.body_text,
+            m.body_html
         FROM emails e
         JOIN messages m ON m.email_id = e.id
         WHERE " . implode(" AND ", $where) . "
@@ -130,7 +132,9 @@ try {
                     e.email,
                     m.subject,
                     m.received_at,
-                    m.id as message_id
+                    m.id as message_id,
+                    m.body_text,
+                    m.body_html
                 FROM emails e
                 JOIN messages m ON m.email_id = e.id
                 WHERE " . implode(" AND ", $whereLike) . "
