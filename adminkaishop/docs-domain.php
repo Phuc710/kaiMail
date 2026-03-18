@@ -72,12 +72,9 @@ AdminLayout::begin('Hướng dẫn domain', 'docs-domain', (string) ($admin['use
                                 <td><?= (int) $domain['email_count'] ?></td>
                                 <td><?= htmlspecialchars((string) $domain['created_at'], ENT_QUOTES, 'UTF-8') ?></td>
                                 <td>
-                                    <button
-                                        type="button"
-                                        class="btn danger btn-sm"
+                                    <button type="button" class="btn danger btn-sm"
                                         data-domain-delete="<?= (int) $domain['id'] ?>"
-                                        data-domain-name="<?= htmlspecialchars((string) $domain['domain'], ENT_QUOTES, 'UTF-8') ?>"
-                                    >
+                                        data-domain-name="<?= htmlspecialchars((string) $domain['domain'], ENT_QUOTES, 'UTF-8') ?>">
                                         Xóa
                                     </button>
                                 </td>
@@ -90,42 +87,61 @@ AdminLayout::begin('Hướng dẫn domain', 'docs-domain', (string) ($admin['use
         </section>
 
         <section style="margin-top: 20px;">
-            <h2>Quy trình cấu hình chuẩn</h2>
+            <h2>Quy trình cấu hình chuẩn (2 Bước)</h2>
+            <p style="margin-bottom: 20px; color: var(--color-text-secondary);">Vì worker của bạn đã được thiết kế
+                Universal, bạn chỉ cần cấu hình DNS trên Cloudflare và thêm vào Admin là xong.</p>
 
             <article class="step-card">
-                <h3><span class="step-number">1</span> Thêm domain vào admin</h3>
-                <p>Tại trang quản lý email, nhấn <strong>Thêm domain</strong> và nhập domain dạng <code>example.com</code>.</p>
+                <h3><span class="step-number">1</span> Cấu hình trên Cloudflare</h3>
+                <p>Chọn domain <code>maiyeuem.indevs.in</code> trong Cloudflare Dashboard, sau đó thực hiện:</p>
+                <ul style="padding-left: 20px; margin-top: 10px; color: var(--color-text-secondary); line-height: 1.6;">
+                    <li>Vào <strong>Email</strong> -> <strong>Email Routing</strong>.</li>
+                    <li>Tại tab <strong>Settings</strong>: Nhấn <strong>Enable Email Routing</strong> và
+                        <strong>Configure</strong> để tự động thêm bản ghi DNS (MX/TXT).
+                    </li>
+                    <li>Tại tab <strong>Routing rules</strong> -> <strong>Catch-all address</strong>: Nhấn
+                        <strong>Edit</strong>.
+                    </li>
+                    <li><strong>Action</strong>: Chọn <code>Send to a Worker</code>.</li>
+                    <li><strong>Destination</strong>: Chọn worker <code>kaishop</code> (URL:
+                        <code>https://kaishop.phucngx0710it.workers.dev/</code>).
+                    </li>
+                    <li><strong>Status</strong>: Gạt sang <strong>Active</strong> và nhấn <strong>Save</strong>.</li>
+                </ul>
             </article>
 
             <article class="step-card">
-                <h3><span class="step-number">2</span> Cấu hình bản ghi MX</h3>
-                <p>Trỏ MX của domain về hệ thống nhận mail (Cloudflare Worker hoặc dịch vụ tiếp nhận bạn dùng).</p>
-                <div class="code-box">Tên bản ghi: @
-Loại: MX
-Priority: 10
-Giá trị: your-worker.your-account.workers.dev</div>
+                <h3><span class="step-number">2</span> Thêm domain vào KaiMail Admin</h3>
+                <p>Khai báo domain để hệ thống bắt đầu chấp nhận email:</p>
+                <div class="code-box" style="margin: 10px 0;">
+                    Trang quản lý: <?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/adminkaishop
+                    Nút: "Thêm domain" (Góc phải trên cùng)
+                    Tên miền: maiyeuem.indevs.in
+                    Trạng thái: Hoạt động</div>
             </article>
 
             <article class="step-card">
-                <h3><span class="step-number">3</span> Cấu hình SPF (khuyến nghị)</h3>
-                <p>SPF giúp giảm rủi ro giả mạo sender và cải thiện độ tin cậy khi gửi.</p>
-                <div class="code-box">Loại: TXT
-Tên: @
-Giá trị: v=spf1 include:_spf.google.com ~all</div>
+                <h3><span class="step-number">3</span> Kiểm tra và Thuận tiện</h3>
+                <p>Sau khi thiết lập xong, hãy thử tạo một địa chỉ và gửi mail kiểm tra:</p>
+                <div class="code-box">curl
+                    "<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/api/emails.php?email=test@maiyeuem.indevs.in"
+                </div>
+                <p style="margin-top: 10px; font-size: 0.9em; color: var(--color-text-secondary);">* Lưu ý: Nếu mail
+                    không vào, hãy kiểm tra lại trạng thái bản ghi MX trên Cloudflare (thường mất 1-5 phút để nhận
+                    diện).</p>
             </article>
 
-            <article class="step-card">
-                <h3><span class="step-number">4</span> Kiểm tra hoạt động</h3>
-                <p>Gửi email thử đến địa chỉ trong domain mới, sau đó kiểm tra trong trang admin.</p>
-                <div class="code-box">curl "<?= htmlspecialchars(BASE_URL, ENT_QUOTES, 'UTF-8') ?>/api/emails.php?email=test@yourdomain.com"</div>
-            </article>
-
-            <article class="step-card">
-                <h3><span class="step-number">5</span> Giám sát và xử lý lỗi</h3>
-                <ul style="padding-left: 20px; color: var(--color-text-secondary);">
-                    <li>Email không vào: kiểm tra MX và thời gian propagation DNS.</li>
-                    <li>Ký tự lỗi: kiểm tra worker có chuyển tiếp raw MIME đúng không.</li>
-                    <li>Vào spam: rà soát SPF/DKIM/DMARC.</li>
+            <article class="step-card" style="border-left: 4px solid var(--color-warning);">
+                <h3><span class="step-number" style="background: var(--color-warning); color: #fff;">!</span> Sử dụng
+                    domain từ tài khoản Cloudflare khác?</h3>
+                <p>Cloudflare không cho phép chọn Worker giữa các tài khoản khác nhau. Cách xử lý:</p>
+                <ul
+                    style="padding-left: 20px; margin-top: 10px; color: var(--color-text-secondary); font-size: 0.9em; line-height: 1.6;">
+                    <li><strong>Tại Tài khoản B:</strong> Tạo 1 Worker mới (ví dụ: <code>v-bridge</code>).</li>
+                    <li>Copy toàn bộ code từ <code>cloudflare-worker.js</code> dán vào đó.</li>
+                    <li>Cài đặt <strong>Environment Variables</strong> (<code>WEBHOOK_URL</code>,
+                        <code>WEBHOOK_SECRET</code>) giống hệt Tài khoản A.</li>
+                    <li>Trong <strong>Email Routing</strong> (Tài khoản B), trỏ Catch-all về Worker vừa tạo này.</li>
                 </ul>
             </article>
         </section>
