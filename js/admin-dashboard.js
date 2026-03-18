@@ -80,6 +80,7 @@ class AdminDashboardPage {
         emailsTableBody?.addEventListener("click", (event) => this.handleTableClick(event));
         emailsTableBody?.addEventListener("change", (event) => this.handleTableChange(event));
         messagesModalBody?.addEventListener("click", (event) => this.handleMessagesClick(event));
+        document.getElementById("checkerResults")?.addEventListener("click", (event) => this.handleTableClick(event));
 
         window.addEventListener("beforeunload", () => this.stopPolling());
         document.addEventListener("visibilitychange", () => {
@@ -608,8 +609,14 @@ class AdminDashboardPage {
         const keyword = document.getElementById("checkerKeyword").value.trim();
         const days = document.getElementById("checkerDays").value;
         const resultsContainer = document.getElementById("checkerResults");
+        const submitBtn = event.target.querySelector('button[type="submit"]');
 
         if (!keyword) return;
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `<div class="spinner spinner-sm" style="margin-right: 8px;"></div><span>Đang quét...</span>`;
+        }
 
         resultsContainer.innerHTML = `<div style="text-align: center; color: #64748b; padding: 2rem;"><div class="spinner" style="margin: 0 auto 1rem;"></div>Đang quét với tốc độ ánh sáng...</div>`;
 
@@ -664,6 +671,11 @@ class AdminDashboardPage {
             `;
         } catch (e) {
             resultsContainer.innerHTML = `<div style="text-align: center; color: #ef4444; padding: 2rem;">Đã xảy ra lỗi hệ thống!</div>`;
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg><span>Quét ngay</span>`;
+            }
         }
     }
 
