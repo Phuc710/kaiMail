@@ -72,6 +72,11 @@ class AdminDashboardPage {
 
         deleteSelectedBtn?.addEventListener("click", () => this.deleteSelected());
 
+        const fastCheckerBtn = document.getElementById("fastCheckerBtn");
+        const checkerForm = document.getElementById("checkerForm");
+
+        checkerForm?.addEventListener("submit", (e) => this.handleCheckerSubmit(e));
+
         emailsTableBody?.addEventListener("click", (event) => this.handleTableClick(event));
         emailsTableBody?.addEventListener("change", (event) => this.handleTableChange(event));
         messagesModalBody?.addEventListener("click", (event) => this.handleMessagesClick(event));
@@ -348,7 +353,7 @@ class AdminDashboardPage {
     async toggleEmailStatus(checkbox) {
         const id = Number(checkbox.getAttribute("data-id") || "0");
         const isDone = checkbox.checked ? 1 : 0;
-        
+
         try {
             const { ok, data } = await this.core.postJson("/api/admin/emails.php", {
                 action: "toggle_done",
@@ -361,7 +366,7 @@ class AdminDashboardPage {
                 this.core.showToast(data?.error || "Không thể cập nhật trạng thái", "error");
                 return;
             }
-            
+
             this.core.showToast("Cập nhật trạng thái thành công", "success");
         } catch (error) {
             checkbox.checked = !checkbox.checked;
@@ -596,6 +601,70 @@ class AdminDashboardPage {
 
         const bodyText = String(data?.body_text || "").trim();
         return this.looksLikeHtml(bodyText) ? bodyText : "";
+    }
+
+    async handleCheckerSubmit(event) {
+        event.preventDefault();
+        const keyword = document.getElementById("checkerKeyword").val().trim();
+        const days = document.getElementById("checkerDays").val();
+        const resultsContainer = document.getElementById("checkerResults");
+
+        if (!keyword) return;
+
+        resultsContainer.innerHTML = `<div style="text-align: center; color: #64748b; padding: 2rem;"><div class="spinner" style="margin: 0 auto 1rem;"></div>Đang quét với tốc độ ánh sáng...</div>`;
+
+        try {
+            const domain = document.getElementById("domainFilter")?.value || "";
+            const query = new URLSearchParams({ keyword, days, limit: 100 });
+            if (domain) query.set("domain", domain);
+
+            const { ok, data } = await this.core.fetchJson(`/api/admin/checker.php?${query.toString()}`);
+
+            if (!ok || !data) {
+                resultsContainer.innerHTML = `<div style="text-align: center; color: #ef4444; padding: 2rem;">Lỗi kết nối hoặc API phản hồi sai.</div>`;
+                return;
+            }
+
+            if (!data.results || data.results.length === 0) {
+                resultsContainer.innerHTML = `<div style="text-align: center; color: #10b981; padding: 2rem;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin: 0 auto 1rem; display: block;">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                    Tuyệt vời! Không tìm thấy email nào chứa từ khóa "${this.core.escapeHtml(keyword)}" trong ${days} ngày qua.
+                    <div style="font-size: 0.8rem; margin-top: 0.5rem; color: #94a3b8;">Thời gian quét: ${data.execution_time}</div>
+                </div>`;
+                return;
+            }
+
+            resultsContainer.innerHTML = `
+                <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem;">
+                    <span style="font-weight: 600; color: #0f172a;">Tìm thấy ${data.count} kết quả</span>
+                    <span style="font-size: 0.85rem; color: #8b5cf6; background: #ede9fe; padding: 2px 8px; border-radius: 12px; font-weight: 600;">⚡ ${data.execution_time}</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    ${data.results.map(r => `
+                        <div style="background: white; border: 1px solid #e2e8f0; border-radius: 0.375rem; padding: 0.75rem; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-weight: 600; color: #1e293b; margin-bottom: 0.25rem;">${this.core.escapeHtml(r.email)}</div>
+                                <div style="font-size: 0.85rem; color: #64748b;">${this.core.escapeHtml(r.subject)}</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.5rem;">${this.core.formatDateTimeVN(r.received_at)}</div>
+                                <button class="btn-icon" data-action="view-messages" data-email-id="${r.email_id}" data-email="${encodeURIComponent(r.email)}" title="Xem hộp thư" style="background: #f1f5f9; width: 28px; height: 28px;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        } catch (e) {
+            resultsContainer.innerHTML = `<div style="text-align: center; color: #ef4444; padding: 2rem;">Đã xảy ra lỗi hệ thống!</div>`;
+        }
     }
 
     looksLikeHtml(value) {

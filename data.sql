@@ -60,6 +60,8 @@ CREATE TABLE IF NOT EXISTS messages (
     INDEX idx_messages_email_read (email_id, is_read)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+ALTER TABLE messages ADD FULLTEXT INDEX idx_content_search (subject, body_text);
+
 -- ============================================
 -- TABLE: settings
 -- Description: Cấu hình hệ thống toàn cục

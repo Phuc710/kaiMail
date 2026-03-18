@@ -23,6 +23,14 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
         <p>Theo dõi, tạo mới và xử lý email trong hệ thống KaiMail.</p>
     </div>
     <div class="page-actions">
+        <button id="fastCheckerBtn" class="btn" style="background: #8b5cf6; color: white;" type="button"
+            data-modal-open="checkerModal">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+            <span>Fast Checker</span>
+        </button>
         <button id="addDomainBtn" class="btn secondary" type="button" data-modal-open="addDomainModal">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="10"></circle>
@@ -299,6 +307,56 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
             </form>
         </div>
     </div>
-</div>
-<?php
-AdminLayout::end(['/js/admin-dashboard.js']);
+    <div id="checkerModal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-lg">
+            <div class="modal-header" style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                <div>
+                    <h2 style="color: #4c1d95; font-size: 1.25rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                        </svg>
+                        Fast Email Checker
+                    </h2>
+                </div>
+                <button class="btn-close" type="button" data-modal-close="checkerModal">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="checkerForm"
+                    style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: end; margin-bottom: 1.5rem;">
+                    <div class="form-group" style="margin: 0;">
+                        <label for="checkerKeyword">Từ khóa cần quét</label>
+                        <input type="text" id="checkerKeyword" value="deactivating" required
+                            style="border-color: #8b5cf6;">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label for="checkerDays">Số ngày</label>
+                        <input type="number" id="checkerDays" value="7" min="1" max="30" style="width: 80px;">
+                    </div>
+                    <button type="submit" class="btn" style="background: #8b5cf6; color: white; height: 42px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        <span>Quét ngay</span>
+                    </button>
+                </form>
+
+                <div id="checkerResults"
+                    style="min-height: 200px; max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 0.5rem; background: #f8fafc; padding: 1rem;">
+                    <div style="text-align: center; color: #94a3b8; padding: 2rem;">
+                        Nhập từ khóa và click "Quét ngay" để bắt đầu
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php
+    AdminLayout::end(['/js/admin-dashboard.js']);
