@@ -313,7 +313,8 @@ body.user-page-body {
 }
 
 .messages-list {
-    height: clamp(400px, 46vh, 500px);
+    max-height: 380px;
+    /* Khoảng 5 tin nhắn (70px - 75px/tin) */
     overflow-y: auto;
 }
 
@@ -493,7 +494,8 @@ body.user-page-body {
 
 .empty-state {
     width: 100%;
-    min-height: clamp(400px, 46vh, 500px);
+    height: 380px;
+    /* Bằng với max-height của .messages-list để cố định khung */
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -711,11 +713,11 @@ body.user-page-body {
     }
 
     .empty-state {
-        min-height: 300px;
+        height: 320px;
         padding: 24px 16px;
     }
 
     .messages-list {
-        height: 300px;
+        max-height: 320px;
     }
 }
