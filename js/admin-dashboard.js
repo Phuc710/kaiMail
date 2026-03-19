@@ -675,12 +675,12 @@ class AdminDashboardPage {
                                             </svg>
                                         </button>
                                     </div>
-                                    <pre style="margin: 0; padding: 0.75rem; background: #1e293b; color: #e2e8f0; border-radius: 0.375rem; font-size: 0.8rem; overflow-x: auto; font-family: 'JetBrains Mono', 'Fira Code', monospace;">${JSON.stringify({
+                                    <pre style="margin: 0; padding: 0.75rem; background: #1e293b; color: #e2e8f0; border-radius: 0.375rem; font-size: 0.8rem; overflow-x: auto; font-family: 'JetBrains Mono', 'Fira Code', monospace;">${this.core.escapeHtml(JSON.stringify({
                 id: r.message_id,
                 subject: r.subject,
                 received_at: r.received_at,
                 body_snippet: (r.body_text || "").substring(0, 500) + (r.body_text?.length > 500 ? "..." : "")
-            }, null, 2)}</pre>
+            }, null, 2))}</pre>
                                 </div>
                             </div>
                         </div>
