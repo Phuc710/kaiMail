@@ -645,26 +645,26 @@ class AdminDashboardPage {
             }
 
             resultsContainer.innerHTML = `
-                <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem;">
-                    <span style="font-weight: 600; color: #0f172a;">Tìm thấy ${data.count} kết quả</span>
-                    <span style="font-size: 0.85rem; color: #ffffff; background: #0f172a; padding: 2px 10px; border-radius: 12px; font-weight: 600;">⚡ ${data.execution_time}</span>
+                <div class="checker-results-header">
+                    <span class="results-count">Tìm thấy ${data.count} kết quả</span>
+                    <span class="execution-time">⚡ ${data.execution_time}</span>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                     ${data.results.map(r => `
-                        <div class="checker-result-item" style="background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; overflow: hidden; transition: all 0.2s ease;">
-                            <div style="padding: 0.75rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="this.parentElement.classList.toggle('active')">
-                                <div style="flex: 1; min-width: 0;">
-                                    <div style="font-weight: 700; color: #1e293b; margin-bottom: 0.25rem; font-size: 0.95rem;">${this.core.escapeHtml(r.email)}</div>
-                                    <div style="font-size: 0.85rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${this.core.escapeHtml(r.subject || '(No subject)')}</div>
+                        <div class="checker-result-item">
+                            <div class="checker-result-header-inner" onclick="this.parentElement.classList.toggle('active')">
+                                <div class="checker-result-info">
+                                    <div class="checker-result-email">${this.core.escapeHtml(r.email)}</div>
+                                    <div class="checker-result-subject">${this.core.escapeHtml(r.subject || '(No subject)')}</div>
                                 </div>
-                                <div style="text-align: right; margin-left: 1rem; display: flex; align-items: center; gap: 0.75rem;">
-                                    <div style="font-size: 0.8rem; color: #94a3b8; white-space: nowrap;">${this.core.formatDateTimeVN(r.received_at)}</div>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" class="chevron" style="transition: transform 0.2s;">
+                                <div class="checker-result-meta">
+                                    <div class="checker-result-time">${this.core.formatDateTimeVN(r.received_at)}</div>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" class="chevron">
                                         <polyline points="6 9 12 15 18 9"></polyline>
                                     </svg>
                                 </div>
                             </div>
-                            <div class="checker-detail" style="max-height: 0; overflow: hidden; transition: all 0.3s ease-in-out; background: #f1f5f9; border-top: 0px solid #e2e8f0;">
+                            <div class="checker-detail">
                                 <div style="padding: 1rem;">
                                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                                         <span style="font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase;">Message JSON</span>
@@ -692,7 +692,9 @@ class AdminDashboardPage {
         } finally {
             if (submitBtn) {
                 submitBtn.disabled = false;
-                submitBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg><span>Quét ngay</span>`;
+                submitBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                </svg><span>Quét ngay</span>`;
             }
         }
     }

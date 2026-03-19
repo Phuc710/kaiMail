@@ -320,8 +320,6 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
                     </svg>
                     Fast Email Checker
                 </h2>
-                <p style="color: #64748b; font-size: 0.85rem; margin-top: 0.25rem;">Quét hàng triệu email trong nháy mắt
-                    (&lt; 1s)</p>
             </div>
             <button class="btn-close" type="button" data-modal-close="checkerModal">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -331,27 +329,41 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
             </button>
         </div>
         <div class="modal-body">
-            <form id="checkerForm"
-                style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: end; margin-bottom: 1.5rem;">
-                <div class="form-group" style="margin: 0;">
-                    <label for="checkerKeyword">Từ khóa cần quét (VD: deactivating, openai)</label>
-                    <input type="text" id="checkerKeyword" value="deactivating" required style="border-color: #0f172a;">
+            <form id="checkerForm" class="checker-form-fancy">
+                <div class="checker-input-group">
+                    <label for="checkerKeyword">Từ khóa quét email</label>
+                    <div class="checker-input-wrapper">
+                        <svg class="checker-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        <input type="text" id="checkerKeyword" value="deactivating"
+                            placeholder="VD: deactivating, openai..." required>
+                    </div>
                 </div>
-                <div class="form-group" style="margin: 0;">
-                    <label for="checkerDays">Số ngày</label>
-                    <input type="number" id="checkerDays" value="7" min="1" max="30" style="width: 80px;">
+                <div class="checker-input-group days-group">
+                    <label for="checkerDays">Trong vòng (ngày)</label>
+                    <div class="checker-input-wrapper">
+                        <svg class="checker-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                        </svg>
+                        <input type="number" id="checkerDays" value="30" min="1" max="90">
+                    </div>
                 </div>
-                <button type="submit" class="btn" style="background: #0f172a; color: white; height: 42px;">
+                <button type="submit" class="checker-btn-submit">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"></circle>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                     </svg>
                     <span>Quét ngay</span>
                 </button>
             </form>
 
-            <div id="checkerResults"
-                style="min-height: 200px; max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 0.5rem; background: #f8fafc; padding: 1rem;">
+            <div id="checkerResults" class="checker-results-container">
                 <div style="text-align: center; color: #94a3b8; padding: 2rem;">
                     Nhập từ khóa và click "Quét ngay" để bắt đầu
                 </div>
@@ -361,14 +373,167 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
 </div>
 
 <style>
+    .checker-form-fancy {
+        display: flex;
+        gap: 12px;
+        align-items: flex-end;
+        margin-bottom: 24px;
+        background: #f8fafc;
+        padding: 16px;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
+    }
+
+    .checker-input-group {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .checker-input-group.days-group {
+        flex: 0 0 140px;
+    }
+
+    .checker-input-group label {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+        margin-left: 2px;
+    }
+
+    .checker-input-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+
+    .checker-input-wrapper .checker-icon {
+        position: absolute;
+        left: 12px;
+        color: #94a3b8;
+        pointer-events: none;
+        transition: color 0.2s ease;
+    }
+
+    .checker-input-wrapper input {
+        width: 100%;
+        height: 44px;
+        padding: 8px 12px 8px 38px !important;
+        border: 1.5px solid #e2e8f0 !important;
+        border-radius: 10px !important;
+        font-size: 0.95rem !important;
+        background: white !important;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        color: #1e293b !important;
+        min-height: auto !important;
+    }
+
+    .checker-input-wrapper input:focus {
+        border-color: #0f172a !important;
+        box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.08) !important;
+        outline: none !important;
+    }
+
+    .checker-input-wrapper input:focus+.checker-icon,
+    .checker-input-wrapper:focus-within .checker-icon {
+        color: #0f172a;
+    }
+
+    .checker-btn-submit {
+        height: 44px;
+        padding: 0 24px;
+        background: #0f172a;
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        font-size: 0.95rem;
+        box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.1), 0 2px 4px -1px rgba(15, 23, 42, 0.06);
+    }
+
+    .checker-btn-submit:hover {
+        background: #1e293b;
+        transform: translateY(-1px);
+        box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.15), 0 4px 6px -2px rgba(15, 23, 42, 0.1);
+    }
+
+    .checker-btn-submit:active {
+        transform: translateY(0);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    .checker-btn-submit:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: none !important;
+    }
+
+    .checker-results-container {
+        min-height: 200px;
+        max-height: 450px;
+        overflow-y: auto;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #fafafa;
+        padding: 16px;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
+    }
+
+    .checker-results-header {
+        margin-bottom: 1.25rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 2px solid #f1f5f9;
+        padding-bottom: 0.75rem;
+    }
+
+    .results-count {
+        font-weight: 800;
+        color: #0f172a;
+        font-size: 0.95rem;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+    }
+
+    .execution-time {
+        font-size: 0.75rem;
+        color: #ffffff;
+        background: #0f172a;
+        padding: 4px 14px;
+        border-radius: 999px;
+        font-weight: 700;
+        box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.2);
+    }
+
+    .checker-result-item {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        overflow: hidden;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        margin-bottom: 10px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
     .checker-result-item.active {
         border-color: #0f172a !important;
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+        transform: scale(1.005);
     }
 
     .checker-result-item.active .checker-detail {
-        max-height: 1000px !important;
-        border-top: 1px solid #e2e8f0 !important;
+        max-height: 1200px !important;
+        border-top: 1px solid #f1f5f9 !important;
     }
 
     .checker-result-item.active .chevron {
@@ -376,18 +541,80 @@ AdminLayout::begin('Quản lý email', 'emails', (string) ($admin['username'] ??
         stroke: #0f172a !important;
     }
 
-    .checker-result-item:hover {
-        border-color: #334155 !important;
-        background: #fafafa !important;
+    .checker-header-inner,
+    .checker-result-header-inner {
+        padding: 0.85rem 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .checker-result-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .checker-result-email {
+        font-weight: 800;
+        color: #1e293b;
+        margin-bottom: 0.25rem;
+        font-size: 0.95rem;
+        font-family: inherit;
+    }
+
+    .checker-result-subject {
+        font-size: 0.85rem;
+        color: #64748b;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-weight: 500;
+    }
+
+    .checker-result-meta {
+        text-align: right;
+        margin-left: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .checker-result-time {
+        font-size: 0.8rem;
+        color: #94a3b8;
+        white-space: nowrap;
+        font-weight: 500;
+    }
+
+    .checker-detail {
+        max-height: 0;
+        overflow: hidden;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        background: #f8fafc;
+        border-top: 0px solid #e2e8f0;
+    }
+
+    .checker-result-item:hover:not(.active) {
+        border-color: #cbd5e1;
+        background: #fdfdfd;
+        transform: translateY(-1px);
     }
 
     .spinner-sm {
-        width: 16px;
-        height: 16px;
-        border: 2px solid rgba(255, 255, 255, .3);
+        width: 18px;
+        height: 18px;
+        border: 2.5px solid rgba(255, 255, 255, .2);
         border-radius: 50%;
         border-top-color: #fff;
-        animation: spin 1s linear infinite;
+        animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
     }
 </style>
 <?php
