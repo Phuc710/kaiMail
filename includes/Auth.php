@@ -15,20 +15,34 @@ class Auth
     private const COOKIE_LIFETIME = 30 * 86400; // 30 days
 
     /**
+     * Check if request is HTTPS
+     */
+    private static function isHttps(): bool
+    {
+        $https = strtolower((string) ($_SERVER['HTTPS'] ?? ''));
+        if ($https !== '' && $https !== 'off') {
+            return true;
+        }
+        return ((string) ($_SERVER['SERVER_PORT'] ?? '')) === '443';
+    }
+
+    /**
      * Start session with secure parameters
      */
     public static function startSession(): void
     {
         if (session_status() === PHP_SESSION_NONE) {
+            $secure = SESSION_COOKIE_SECURE && self::isHttps();
+
             ini_set('session.use_strict_mode', '1');
             ini_set('session.cookie_httponly', SESSION_COOKIE_HTTP_ONLY ? '1' : '0');
-            ini_set('session.cookie_secure', SESSION_COOKIE_SECURE ? '1' : '0');
+            ini_set('session.cookie_secure', $secure ? '1' : '0');
 
             session_set_cookie_params([
                 'lifetime' => SESSION_LIFETIME,
                 'path' => SESSION_COOKIE_PATH,
                 'domain' => SESSION_COOKIE_DOMAIN,
-                'secure' => SESSION_COOKIE_SECURE,
+                'secure' => $secure,
                 'httponly' => SESSION_COOKIE_HTTP_ONLY,
                 'samesite' => SESSION_COOKIE_SAMESITE,
             ]);
@@ -51,17 +65,20 @@ class Auth
 
             // Generate cryptographically secure token derived from app secrets
             $token = self::generateToken();
+            $secure = SESSION_COOKIE_SECURE && self::isHttps();
             
             $cookieParams = [
                 'expires' => time() + self::COOKIE_LIFETIME,
                 'path' => SESSION_COOKIE_PATH,
                 'domain' => SESSION_COOKIE_DOMAIN,
-                'secure' => SESSION_COOKIE_SECURE,
+                'secure' => $secure,
                 'httponly' => true, // HttpOnly prevents JavaScript from reading the cookie
                 'samesite' => SESSION_COOKIE_SAMESITE,
             ];
 
             setcookie(self::COOKIE_NAME, $token, $cookieParams);
+            
+            session_write_close();
             return true;
         }
 
@@ -77,6 +94,7 @@ class Auth
         
         // 1. Check Session
         if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true) {
+            session_write_close();
             return true;
         }
 
@@ -87,10 +105,12 @@ class Auth
                 // Restore session
                 $_SESSION['admin_logged_in'] = true;
                 $_SESSION['admin_username'] = 'admin';
+                session_write_close();
                 return true;
             }
         }
 
+        session_write_close();
         return false;
     }
 
@@ -115,12 +135,14 @@ class Auth
             ]);
         }
 
+        $secure = SESSION_COOKIE_SECURE && self::isHttps();
+
         // Clear persistent remember cookie
         setcookie(self::COOKIE_NAME, '', [
             'expires' => time() - 42000,
             'path' => SESSION_COOKIE_PATH,
             'domain' => SESSION_COOKIE_DOMAIN,
-            'secure' => SESSION_COOKIE_SECURE,
+            'secure' => $secure,
             'httponly' => true,
             'samesite' => SESSION_COOKIE_SAMESITE,
         ]);
