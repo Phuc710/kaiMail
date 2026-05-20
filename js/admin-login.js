@@ -2,8 +2,8 @@
  * KaiMail Admin Login page logic (OOP).
  */
 class AdminAccessKeyStore {
-    constructor(storageKey) {
-        this.storageKey = String(storageKey || "kaimail_admin_access_key");
+    constructor() {
+        // No-op class kept for backward compatibility/structure, keys are stored securely in HttpOnly cookies
     }
 
     normalize(rawValue) {
@@ -15,23 +15,6 @@ class AdminAccessKeyStore {
         }
 
         return raw;
-    }
-
-    get() {
-        return this.normalize(sessionStorage.getItem(this.storageKey));
-    }
-
-    set(value) {
-        const normalized = this.normalize(value);
-        if (normalized === "") {
-            return;
-        }
-
-        sessionStorage.setItem(this.storageKey, normalized);
-    }
-
-    clear() {
-        sessionStorage.removeItem(this.storageKey);
     }
 }
 
@@ -62,37 +45,30 @@ class AdminAuthApiClient {
         return `${this.baseUrl}${path}`;
     }
 
-    async verify(accessKey) {
-        if (!accessKey) {
-            return { ok: false, status: 0, message: "Thieu khoa truy cap" };
-        }
-
+    async verify() {
         try {
             const response = await fetch(this.buildUrl(this.authEndpoint), {
-                method: "GET",
-                headers: {
-                    "X-ADMIN-ACCESS-KEY": accessKey,
-                },
+                method: "GET"
             });
 
             if (response.ok) {
-                return { ok: true, status: response.status, message: "Xac thuc thanh cong" };
+                return { ok: true, status: response.status, message: "Xác thực thành công" };
             }
 
             const data = await this.readJsonSafe(response);
             return {
                 ok: false,
                 status: response.status,
-                message: String(data?.message || data?.error || "Khoa truy cap khong dung"),
+                message: String(data?.message || data?.error || "Khóa truy cập không đúng"),
             };
         } catch (error) {
-            return { ok: false, status: 0, message: "Khong the ket noi may chu" };
+            return { ok: false, status: 0, message: "Không thể kết nối máy chủ" };
         }
     }
 
     async login(password) {
         if (!password) {
-            return { ok: false, status: 0, message: "Vui long nhap khoa truy cap" };
+            return { ok: false, status: 0, message: "Vui lòng nhập khóa truy cập" };
         }
 
         try {
@@ -109,13 +85,13 @@ class AdminAuthApiClient {
                 return {
                     ok: false,
                     status: response.status,
-                    message: String(data?.message || data?.error || "Khoa truy cap khong dung"),
+                    message: String(data?.message || data?.error || "Khóa truy cập không đúng"),
                 };
             }
 
-            return { ok: true, status: response.status, message: "Dang nhap thanh cong" };
+            return { ok: true, status: response.status, message: "Đăng nhập thành công" };
         } catch (error) {
-            return { ok: false, status: 0, message: "Khong the ket noi may chu" };
+            return { ok: false, status: 0, message: "Không thể kết nối máy chủ" };
         }
     }
 
@@ -151,21 +127,12 @@ class AdminLoginPageController {
     }
 
     async tryAutoLogin() {
-        const storedKey = this.keyStore.get();
-        if (storedKey === "") {
-            return;
-        }
+        this.showStatus("Đang kiểm tra phiên đăng nhập...");
 
-        this.showStatus("Dang kiem tra phien dang nhap...");
-
-        const result = await this.authApi.verify(storedKey);
+        const result = await this.authApi.verify();
         if (result.ok) {
             this.redirectToDashboard();
             return;
-        }
-
-        if (result.status === 401) {
-            this.keyStore.clear();
         }
 
         this.hideStatus();
@@ -177,38 +144,23 @@ class AdminLoginPageController {
         const rawPassword = this.passwordInput.value;
         const password = this.keyStore.normalize(rawPassword);
         if (password === "") {
-            this.showError("Vui long nhap khoa truy cap");
+            this.showError("Vui lòng nhập khóa truy cập");
             return;
         }
 
-        this.setLoading(true, "Dang dang nhap...");
+        this.setLoading(true, "Đang đăng nhập...");
         this.hideError();
-        this.showStatus("Dang xac thuc voi may chu...");
+        this.showStatus("Đang xác thực với máy chủ...");
 
         const loginResult = await this.authApi.login(password);
         if (!loginResult.ok) {
-            this.setLoading(false, "Dang nhap");
+            this.setLoading(false, "Đăng nhập");
             this.hideStatus();
-            this.showError(loginResult.message || "Dang nhap that bai");
+            this.showError(loginResult.message || "Đăng nhập thất bại");
             return;
         }
 
-        this.keyStore.set(password);
-
-        // Re-verify by GET so policy errors (HTTPS/IP/strict mode) are shown immediately.
-        const verifyResult = await this.authApi.verify(password);
-        if (verifyResult.ok) {
-            this.redirectToDashboard();
-            return;
-        }
-
-        if (verifyResult.status === 401) {
-            this.keyStore.clear();
-        }
-
-        this.setLoading(false, "Dang nhap");
-        this.hideStatus();
-        this.showError(verifyResult.message || "Dang nhap that bai");
+        this.redirectToDashboard();
     }
 
     setLoading(isLoading, label) {
@@ -217,14 +169,14 @@ class AdminLoginPageController {
     }
 
     showError(message) {
-        const text = String(message || "Da xay ra loi");
+        const text = String(message || "Đã xảy ra lỗi");
         const swal = window.Swal;
         if (swal && typeof swal.fire === "function") {
             swal.fire({
                 icon: "error",
-                title: "Dang nhap that bai",
+                title: "Đăng nhập thất bại",
                 text,
-                confirmButtonText: "Dong",
+                confirmButtonText: "Đóng",
             });
             return;
         }
@@ -276,9 +228,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const baseUrl = String(html?.dataset.baseUrl || "").trim();
     const authEndpoint = String(body?.dataset.authEndpoint || "/api/admin/auth.php").trim();
     const adminHomePath = String(body?.dataset.adminHome || "/adminkaishop").trim();
-    const storageKey = String(body?.dataset.storageKey || "kaimail_admin_access_key").trim();
 
-    const keyStore = new AdminAccessKeyStore(storageKey);
+    const keyStore = new AdminAccessKeyStore();
     const authApi = new AdminAuthApiClient(baseUrl, authEndpoint);
 
     const controller = new AdminLoginPageController({

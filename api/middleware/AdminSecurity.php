@@ -59,7 +59,12 @@ final class AdminSecurity
             return;
         }
 
-        self::deny(401, 'Khong hop le hoac thieu X-ADMIN-ACCESS-KEY');
+        require_once __DIR__ . '/../../includes/Auth.php';
+        if (Auth::isLoggedIn()) {
+            return;
+        }
+
+        self::deny(401, 'Khong hop le hoac thieu X-ADMIN-ACCESS-KEY/Cookie');
     }
 
     public static function enforceNetworkPolicyOnly(): void

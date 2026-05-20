@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 /**
  * Authentication Helper
  * KaiMail - Temp Mail System  
@@ -9,8 +11,11 @@ require_once __DIR__ . '/../config/app.php';
 
 class Auth
 {
+    private const COOKIE_NAME = 'kaimail_admin_token';
+    private const COOKIE_LIFETIME = 30 * 86400; // 30 days
+
     /**
-     * Start session
+     * Start session with secure parameters
      */
     public static function startSession(): void
     {
@@ -34,21 +39,29 @@ class Auth
     }
 
     /**
-     * Login admin
+     * Verify credentials and log in the admin
      */
-    public static function login(string $username, string $password): bool
+    public static function login(string $password): bool
     {
-        $db = getDB();
-        $stmt = $db->prepare("SELECT id, username, password FROM admins WHERE username = ?");
-        $stmt->execute([$username]);
-        $admin = $stmt->fetch();
-
-        if ($admin && password_verify($password, $admin['password'])) {
+        if (hash_equals((string) ADMIN_ACCESS_KEY, $password)) {
             self::startSession();
             session_regenerate_id(true);
-            $_SESSION['admin_id'] = $admin['id'];
-            $_SESSION['admin_username'] = $admin['username'];
-            $_SESSION['logged_in'] = true;
+            $_SESSION['admin_logged_in'] = true;
+            $_SESSION['admin_username'] = 'admin';
+
+            // Generate cryptographically secure token derived from app secrets
+            $token = self::generateToken();
+            
+            $cookieParams = [
+                'expires' => time() + self::COOKIE_LIFETIME,
+                'path' => SESSION_COOKIE_PATH,
+                'domain' => SESSION_COOKIE_DOMAIN,
+                'secure' => SESSION_COOKIE_SECURE,
+                'httponly' => true, // HttpOnly prevents JavaScript from reading the cookie
+                'samesite' => SESSION_COOKIE_SAMESITE,
+            ];
+
+            setcookie(self::COOKIE_NAME, $token, $cookieParams);
             return true;
         }
 
@@ -56,22 +69,40 @@ class Auth
     }
 
     /**
-     * Check if admin is logged in
+     * Check if admin is logged in (via active session or valid persistent cookie)
      */
     public static function isLoggedIn(): bool
     {
         self::startSession();
-        return isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
+        
+        // 1. Check Session
+        if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true) {
+            return true;
+        }
+
+        // 2. Check Persistent Cookie
+        if (isset($_COOKIE[self::COOKIE_NAME])) {
+            $expectedToken = self::generateToken();
+            if (hash_equals($expectedToken, $_COOKIE[self::COOKIE_NAME])) {
+                // Restore session
+                $_SESSION['admin_logged_in'] = true;
+                $_SESSION['admin_username'] = 'admin';
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
-     * Logout admin
+     * Log out admin by destroying the session and clearing the persistent cookie
      */
     public static function logout(): void
     {
         self::startSession();
         $_SESSION = [];
 
+        // Clear session cookie
         if (ini_get('session.use_cookies')) {
             $params = session_get_cookie_params();
             setcookie(session_name(), '', [
@@ -80,15 +111,25 @@ class Auth
                 'domain' => $params['domain'],
                 'secure' => $params['secure'],
                 'httponly' => $params['httponly'],
-                'samesite' => $params['samesite'] ?? SESSION_COOKIE_SAMESITE,
+                'samesite' => $params['samesite'],
             ]);
         }
+
+        // Clear persistent remember cookie
+        setcookie(self::COOKIE_NAME, '', [
+            'expires' => time() - 42000,
+            'path' => SESSION_COOKIE_PATH,
+            'domain' => SESSION_COOKIE_DOMAIN,
+            'secure' => SESSION_COOKIE_SECURE,
+            'httponly' => true,
+            'samesite' => SESSION_COOKIE_SAMESITE,
+        ]);
 
         session_destroy();
     }
 
     /**
-     * Require admin login
+     * Require admin authentication or redirect/error
      */
     public static function requireLogin(): void
     {
@@ -96,7 +137,6 @@ class Auth
             if (isAjax()) {
                 jsonResponse(['error' => 'Unauthorized'], 401);
             } else {
-                // Redirect to login page (clean URL)
                 header('Location: ' . BASE_URL . '/adminkaishop/login');
                 exit;
             }
@@ -104,25 +144,10 @@ class Auth
     }
 
     /**
-     * Get current admin
+     * Generate secure token derived from ADMIN_ACCESS_KEY and API_SECRET_KEY
      */
-    public static function getAdmin(): ?array
+    private static function generateToken(): string
     {
-        self::startSession();
-        if (self::isLoggedIn()) {
-            return [
-                'id' => $_SESSION['admin_id'],
-                'username' => $_SESSION['admin_username']
-            ];
-        }
-        return null;
-    }
-
-    /**
-     * Hash password
-     */
-    public static function hashPassword(string $password): string
-    {
-        return password_hash($password, PASSWORD_DEFAULT);
+        return hash_hmac('sha256', 'admin_session', (string) ADMIN_ACCESS_KEY);
     }
 }

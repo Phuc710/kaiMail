@@ -35,7 +35,8 @@ if ($method === 'POST') {
         jsonResponse(['error' => 'Access key is required'], 400);
     }
 
-    if (!hash_equals((string) ADMIN_ACCESS_KEY, $password)) {
+    require_once __DIR__ . '/../../includes/Auth.php';
+    if (!Auth::login($password)) {
         // Slow down brute-force attempts slightly.
         usleep(250000);
         jsonResponse(['error' => 'Invalid access key'], 401);
@@ -59,9 +60,11 @@ if ($method === 'GET') {
 }
 
 if ($method === 'DELETE') {
+    require_once __DIR__ . '/../../includes/Auth.php';
+    Auth::logout();
     jsonResponse([
         'success' => true,
-        'message' => 'Logged out on client side',
+        'message' => 'Logged out on server and client',
     ]);
 }
 

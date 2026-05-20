@@ -31,27 +31,8 @@ class AdminCore {
         return `${this.baseUrl}${normalized}`;
     }
 
-    normalizeAdminAccessKey(rawValue) {
-        const raw = String(rawValue || "").trim();
-        const envPrefix = "ADMIN_ACCESS_KEY=";
-        if (raw.startsWith(envPrefix)) {
-            return raw.slice(envPrefix.length).trim();
-        }
-        return raw;
-    }
-
-    getAdminAccessKey() {
-        return this.normalizeAdminAccessKey(sessionStorage.getItem(this.adminKeyStorage));
-    }
-
-    setAdminAccessKey(value) {
-        const normalized = this.normalizeAdminAccessKey(value);
-        if (!normalized) return;
-        sessionStorage.setItem(this.adminKeyStorage, normalized);
-    }
-
     clearAdminAccessKey() {
-        sessionStorage.removeItem(this.adminKeyStorage);
+        // No-op, cookies are handled by server
     }
 
     isLoginPage() {
@@ -67,33 +48,25 @@ class AdminCore {
             return true;
         }
 
-        const adminKey = this.getAdminAccessKey();
-        if (!adminKey) {
-            window.location.href = this.buildUrl("/adminkaishop/login");
-            return false;
-        }
-
         try {
             const response = await fetch(this.buildUrl("/api/admin/auth.php"), {
                 method: "GET",
-                headers: { "X-ADMIN-ACCESS-KEY": adminKey },
             });
-
-            let data = null;
-            try {
-                data = await response.json();
-            } catch (error) {
-                data = null;
-            }
 
             if (!response.ok) {
                 if (response.status === 401) {
-                    this.clearAdminAccessKey();
                     window.location.href = this.buildUrl("/adminkaishop/login");
                     return false;
                 }
 
-                const message = data?.message || data?.error || "Khong the xac thuc phien admin";
+                let data = null;
+                try {
+                    data = await response.json();
+                } catch (error) {
+                    data = null;
+                }
+
+                const message = data?.message || data?.error || "Không thể xác thực phiên admin";
                 this.showToast(message, "error");
                 return false;
             }
@@ -110,14 +83,6 @@ class AdminCore {
         if (!headers.has("Content-Type")) {
             headers.set("Content-Type", "application/json");
         }
-
-        if (path.startsWith("/api/admin/")) {
-            const adminKey = this.getAdminAccessKey();
-            if (adminKey !== "") {
-                headers.set("X-ADMIN-ACCESS-KEY", adminKey);
-            }
-        }
-
         return headers;
     }
 
