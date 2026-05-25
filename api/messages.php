@@ -40,12 +40,25 @@ final class MessagesApiController
     private function handleGet(): void
     {
         if (isset($_GET['id'])) {
-            $message = MessageService::getMessage((int) $_GET['id']);
+            $id = (int)$_GET['id'];
+            $email = strtolower(trim((string)($_GET['email'] ?? '')));
+            if ($email === '') {
+                jsonResponse(['error' => 'Email is required to access message details'], 400);
+            }
+
+            // Fetch message
+            $message = MessageService::getMessage($id);
             if (!$message) {
                 jsonResponse(['error' => 'Message not found'], 404);
             }
 
+            // Verify ownership
+            if (strtolower(trim((string)($message['recipient'] ?? ''))) !== $email) {
+                jsonResponse(['error' => 'Unauthorized: Message does not belong to this email'], 403);
+            }
+
             jsonResponse($message);
+            return;
         }
 
         $email = strtolower(trim((string) ($_GET['email'] ?? '')));

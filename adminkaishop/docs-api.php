@@ -360,10 +360,10 @@ AdminLayout::begin('API Integration Docs', 'docs-api', $adminName);
     <div class="endpoint-card">
         <div class="endpoint-header">
             <span class="method get">GET</span>
-            <span class="url">/api/messages.php?id=123</span>
+            <span class="url">/api/messages.php?id=123&amp;email=user@domain.com</span>
         </div>
         <div class="endpoint-body">
-            <p>Get message detail by message ID.</p>
+            <p>Get message detail by message ID. The <code>email</code> parameter is required to verify ownership of the message.</p>
         </div>
     </div>
 
@@ -388,10 +388,10 @@ AdminLayout::begin('API Integration Docs', 'docs-api', $adminName);
     <div class="endpoint-card">
         <div class="endpoint-header">
             <span class="method get">GET</span>
-            <span class="url">/api/long-poll.php?email_id=1&amp;last_check=YYYY-mm-dd HH:ii:ss</span>
+            <span class="url">/api/long-poll.php?email_id=1&amp;email=user@domain.com&amp;last_check=YYYY-mm-dd HH:ii:ss</span>
         </div>
         <div class="endpoint-body">
-            <p>Long polling for near real-time message updates.</p>
+            <p>Long polling for near real-time message updates. The <code>email</code> parameter is required to verify ownership.</p>
         </div>
     </div>
 

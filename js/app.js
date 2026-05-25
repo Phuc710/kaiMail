@@ -157,8 +157,8 @@ class KaiMailApi {
         return this.getJson("/api/messages.php", { email, limit });
     }
 
-    fetchMessageById(id) {
-        return this.getJson("/api/messages.php", { id });
+    fetchMessageById(id, email = "") {
+        return this.getJson("/api/messages.php", { id, email });
     }
 }
 
@@ -517,7 +517,7 @@ class KaiMailUserPage {
         if (bodyContainer.dataset.loaded === "true") return;
 
         try {
-            const { ok, data } = await this.api.fetchMessageById(id);
+            const { ok, data } = await this.api.fetchMessageById(id, this.state.currentEmail);
             if (!ok || !data) {
                 throw new Error(data?.error || "Không thể mở email");
             }
@@ -706,7 +706,7 @@ class KaiMailUserPage {
             this.state.lastCheck = this.time.nowSqlVN();
         }
 
-        this.poller.start(this.state.currentEmailId, this.state.lastCheck);
+        this.poller.start(this.state.currentEmailId, this.state.lastCheck, this.state.currentEmail);
     }
 
     stopPolling() {

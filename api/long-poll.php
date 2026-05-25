@@ -22,6 +22,7 @@ ApiSecurity::requireApiAuth();
 
 try {
     $emailId = (int) ($_GET['email_id'] ?? 0);
+    $email = strtolower(trim((string) ($_GET['email'] ?? '')));
     $lastCheck = $_GET['last_check'] ?? date('Y-m-d H:i:s');
 
     $maxTime = LONG_POLL_MAX_SECONDS;
@@ -32,6 +33,16 @@ try {
 
     if (!$emailId) {
         jsonResponse(['error' => 'email_id required'], 400);
+    }
+    if ($email === '') {
+        jsonResponse(['error' => 'email required'], 400);
+    }
+
+    // Verify ownership of the email account
+    $stmtCheck = $db->prepare("SELECT id FROM emails WHERE id = ? AND email = ? LIMIT 1");
+    $stmtCheck->execute([$emailId, $email]);
+    if (!$stmtCheck->fetch()) {
+        jsonResponse(['error' => 'Unauthorized: Email ID and address mismatch'], 403);
     }
 
     $fetchSql = "

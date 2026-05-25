@@ -57,13 +57,14 @@ class LongPollingManager {
         window.removeEventListener("beforeunload", this.boundBeforeUnload);
     }
 
-    start(emailId, lastCheck = "") {
+    start(emailId, lastCheck = "", email = "") {
         const normalizedEmailId = Number(emailId || 0);
         if (normalizedEmailId < 1) return;
 
         if (this.isActive) this.stop();
 
         this.emailId = normalizedEmailId;
+        this.email = String(email || "").trim();
         this.lastCheck = String(lastCheck || "").trim();
         this.isActive = true;
         this.isPaused = false;
@@ -166,6 +167,9 @@ class LongPollingManager {
             email_id: String(this.emailId),
             last_check: this.lastCheck,
         });
+        if (this.email && this.email !== "") {
+            params.append("email", this.email);
+        }
         const endpoint = this.pollEndpoint.startsWith("/") ? this.pollEndpoint : `/${this.pollEndpoint}`;
         return `${this.basePath}${endpoint}?${params.toString()}`;
     }
