@@ -648,65 +648,52 @@ body.user-page-body {
 .otp-code-wrapper {
     display: flex;
     align-items: center;
+    gap: 16px;
     background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 12px 24px;
+    border: 2px dashed #cbd5e1;
+    border-radius: 16px;
+    padding: 16px 32px;
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03);
+    transition: all 0.2s ease;
     user-select: all;
 }
 
 .otp-code-wrapper:hover {
-    background: #ffffff;
-    border-color: #cbd5e1;
-    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
-    transform: translateY(-1px);
+    background: #f1f5f9;
+    border-color: #94a3b8;
 }
 
 .otp-digit-group {
-    font-size: clamp(28px, 4vw, 36px);
-    font-weight: 700;
+    font-size: clamp(36px, 6vw, 54px);
+    font-weight: 800;
     letter-spacing: 0.05em;
     color: #0f172a;
-    font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
-}
-
-#otpGroup1::after {
-    content: "•";
-    display: inline-block;
-    color: #94a3b8;
-    margin-left: 12px;
-    margin-right: 2px;
-    font-size: 24px;
-    vertical-align: middle;
+    font-family: 'Courier New', Courier, monospace;
 }
 
 .btn-copy-otp-large {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 22px;
-    background: #0f172a;
+    padding: 10px 20px;
+    background: #157347;
     color: #ffffff;
     border: none;
-    border-radius: 10px;
-    font-size: 14px;
+    border-radius: 8px;
+    font-size: 15px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(21, 115, 71, 0.25);
 }
 
 .btn-copy-otp-large:hover {
-    background: #1e293b;
-    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.25);
-    transform: translateY(-1px);
+    background: #12613a;
+    box-shadow: 0 6px 16px rgba(18, 97, 58, 0.35);
 }
 
 .btn-copy-otp-large:active {
-    transform: translateY(0) scale(0.98);
+    transform: scale(0.98);
 }
 
 .twofa-timer-wrapper {
