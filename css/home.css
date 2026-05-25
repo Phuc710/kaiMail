@@ -587,6 +587,146 @@ body.user-page-body {
     border: 1px solid #dbe6f0 !important;
 }
 
+/* App Mode Selector styling */
+.app-mode-selector {
+    display: flex;
+    align-items: center;
+    background: #f1f5f9;
+    padding: 4px;
+    border-radius: 999px;
+    border: 1px solid #e2e8f0;
+}
+
+.mode-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: none;
+    background: transparent;
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.mode-tab:hover {
+    color: #334155;
+}
+
+.mode-tab.active {
+    background: #ffffff;
+    color: #1e3a5f;
+    box-shadow: 0 2px 8px rgba(148, 163, 184, 0.3);
+}
+
+.mode-tab svg {
+    color: currentColor;
+}
+
+/* 2FA Result Card Styling */
+.twofa-card-body {
+    padding: clamp(24px, 4vw, 40px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+}
+
+.twofa-otp-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+    width: 100%;
+}
+
+.otp-code-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: #f8fafc;
+    border: 2px dashed #cbd5e1;
+    border-radius: 16px;
+    padding: 16px 32px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: all;
+}
+
+.otp-code-wrapper:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+}
+
+.otp-digit-group {
+    font-size: clamp(36px, 6vw, 54px);
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    color: #0f172a;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.btn-copy-otp-large {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: #157347;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(21, 115, 71, 0.25);
+}
+
+.btn-copy-otp-large:hover {
+    background: #12613a;
+    box-shadow: 0 6px 16px rgba(18, 97, 58, 0.35);
+}
+
+.btn-copy-otp-large:active {
+    transform: scale(0.98);
+}
+
+.twofa-timer-wrapper {
+    width: 100%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.twofa-progress-bar-bg {
+    width: 100%;
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.twofa-progress-bar {
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, #157347, #10b981);
+    border-radius: 999px;
+    transition: width 1s linear;
+}
+
+.twofa-timer-text {
+    font-size: 14px;
+    color: #64748b;
+    font-weight: 500;
+}
+
 @media (max-width: 720px) {
     .user-topbar {
         min-height: auto;
@@ -594,6 +734,7 @@ body.user-page-body {
         flex-direction: row;
         align-items: center;
         gap: 8px;
+        flex-wrap: wrap;
     }
 
     .brand-block {
@@ -601,6 +742,7 @@ body.user-page-body {
         gap: 6px;
         margin-bottom: 0;
         flex-shrink: 0;
+        order: 1;
     }
 
     .brand-icon {
@@ -619,12 +761,27 @@ body.user-page-body {
         display: none;
     }
 
+    .app-mode-selector {
+        width: 100%;
+        justify-content: center;
+        margin-top: 4px;
+        order: 3;
+    }
+
+    .mode-tab {
+        flex: 1;
+        justify-content: center;
+        padding: 6px 12px;
+        font-size: 13px;
+    }
+
     .ecosystem-links {
         width: auto;
-        justify-content: flex-start;
+        justify-content: flex-end;
         gap: 6px;
         flex-wrap: nowrap;
         flex-grow: 1;
+        order: 2;
     }
 
     .eco-link {

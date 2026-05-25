@@ -182,6 +182,10 @@ class KaiMailUserPage {
             lastCheck: "",
             cooldowns: {}, // { key: nextAllowedTimestamp }
             clickStats: {}, // { key: { count: 0, last: 0 } }
+            // 2FA state variables
+            currentMode: "mail", // "mail" or "twofa"
+            twofaSecret: "",
+            twofaTimerId: null
         };
 
         this.poller = null;
@@ -211,6 +215,22 @@ class KaiMailUserPage {
         this.closeModalBtn = null;
 
         this.defaultGetBtnHtml = this.getMailBtn ? this.getMailBtn.innerHTML : "";
+
+        // 2FA DOM Elements
+        this.twofaInput = document.getElementById("twofaInput");
+        this.twofaClearBtn = document.getElementById("twofaClearBtn");
+        this.getOtpBtn = document.getElementById("getOtpBtn");
+        this.twofaResultSection = document.getElementById("twofaResultSection");
+        this.otpGroup1 = document.getElementById("otpGroup1");
+        this.otpGroup2 = document.getElementById("otpGroup2");
+        this.copyOtpBtn = document.getElementById("copyOtpBtn");
+        this.otpCodeWrapper = document.getElementById("otpCodeWrapper");
+        this.twofaProgress = document.getElementById("twofaProgress");
+        this.twofaTimerText = document.getElementById("twofaTimerText");
+        
+        this.mailModeContent = document.getElementById("mailModeContent");
+        this.twofaModeContent = document.getElementById("twofaModeContent");
+        this.modeTabs = document.querySelectorAll(".mode-tab");
     }
 
     ready() {
@@ -258,12 +278,71 @@ class KaiMailUserPage {
         if (initialEmail !== "") {
             this.emailInput.value = initialEmail;
             this.openInbox(initialEmail, true);
-            return;
+        } else {
+            const cachedEmail = String(localStorage.getItem(this.storageKey) || "").trim();
+            if (cachedEmail !== "") {
+                this.emailInput.value = cachedEmail;
+            }
         }
 
-        const cachedEmail = String(localStorage.getItem(this.storageKey) || "").trim();
-        if (cachedEmail !== "") {
-            this.emailInput.value = cachedEmail;
+        // 2FA Init events
+        if (this.modeTabs && this.modeTabs.length > 0) {
+            this.modeTabs.forEach(tab => {
+                tab.addEventListener("click", () => {
+                    const mode = tab.getAttribute("data-mode");
+                    this.switchMode(mode);
+                });
+            });
+        }
+
+        if (this.twofaInput) {
+            this.twofaInput.addEventListener("input", () => {
+                const val = this.twofaInput.value.trim();
+                if (this.twofaClearBtn) {
+                    this.twofaClearBtn.style.display = val !== "" ? "inline-flex" : "none";
+                }
+            });
+
+            this.twofaInput.addEventListener("keydown", (event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                this.generateTwofaOtp();
+            });
+        }
+
+        if (this.twofaClearBtn) {
+            this.twofaClearBtn.addEventListener("click", () => {
+                this.twofaInput.value = "";
+                this.twofaClearBtn.style.display = "none";
+                this.twofaInput.focus();
+            });
+        }
+
+        if (this.getOtpBtn) {
+            this.getOtpBtn.addEventListener("click", () => {
+                this.generateTwofaOtp();
+            });
+        }
+
+        if (this.copyOtpBtn) {
+            this.copyOtpBtn.addEventListener("click", () => this.copyTwofaOtp());
+        }
+
+        if (this.otpCodeWrapper) {
+            this.otpCodeWrapper.addEventListener("click", () => this.copyTwofaOtp());
+        }
+
+        // Restore active mode and cached 2fa secret
+        const cachedMode = localStorage.getItem("kaimail_mode") || "mail";
+        this.switchMode(cachedMode);
+
+        const cachedSecret = localStorage.getItem("kaimail_2fa_secret") || "";
+        if (cachedSecret !== "" && this.twofaInput) {
+            this.twofaInput.value = cachedSecret;
+            if (this.twofaClearBtn) {
+                this.twofaClearBtn.style.display = "inline-flex";
+            }
+            this.generateTwofaOtp(true);
         }
     }
 
@@ -1016,6 +1095,139 @@ class KaiMailUserPage {
         btn.disabled = true;
         if (key === "get_mail") {
             btn.innerHTML = `<span>Đợi ${remaining}s...</span>`;
+        }
+    }
+
+    switchMode(mode) {
+        this.state.currentMode = mode;
+        localStorage.setItem("kaimail_mode", mode);
+
+        if (this.modeTabs) {
+            this.modeTabs.forEach(tab => {
+                const tabMode = tab.getAttribute("data-mode");
+                tab.classList.toggle("active", tabMode === mode);
+            });
+        }
+
+        if (mode === "mail") {
+            if (this.mailModeContent) this.mailModeContent.classList.remove("hidden");
+            if (this.twofaModeContent) this.twofaModeContent.classList.add("hidden");
+            this.startPolling();
+        } else {
+            if (this.mailModeContent) this.mailModeContent.classList.add("hidden");
+            if (this.twofaModeContent) this.twofaModeContent.classList.remove("hidden");
+            this.stopPolling();
+        }
+    }
+
+    generateTwofaOtp(autoRun = false) {
+        if (!this.twofaInput) return;
+        
+        let secret = this.twofaInput.value.trim().replace(/\s+/g, "");
+        if (secret === "") {
+            if (!autoRun) {
+                this.toast("Vui lòng nhập khóa bí mật 2FA", "error");
+                this.twofaInput.focus();
+            }
+            return;
+        }
+
+        const cleanSecret = secret.toUpperCase();
+        if (!/^[A-Z2-7]+=*$/.test(cleanSecret)) {
+            this.toast("Khóa bí mật 2FA không đúng định dạng Base32", "error");
+            this.twofaInput.focus();
+            return;
+        }
+
+        this.state.twofaSecret = cleanSecret;
+        localStorage.setItem("kaimail_2fa_secret", secret);
+
+        if (this.state.twofaTimerId) {
+            clearInterval(this.state.twofaTimerId);
+        }
+
+        try {
+            if (!window.OTPAuth) {
+                throw new Error("Không thể tải thư viện sinh mã OTP (OTPAuth). Vui lòng kiểm tra lại kết nối mạng.");
+            }
+
+            const totp = new window.OTPAuth.TOTP({
+                algorithm: 'SHA1',
+                digits: 6,
+                period: 30,
+                secret: window.OTPAuth.Secret.fromBase32(cleanSecret)
+            });
+
+            if (this.twofaResultSection) {
+                this.twofaResultSection.classList.remove("hidden");
+            }
+
+            const updateOtp = () => {
+                try {
+                    const code = totp.generate();
+                    const secondsRemaining = 30 - (Math.floor(Date.now() / 1000) % 30);
+                    this.updateTwofaUi(code, secondsRemaining);
+                } catch (err) {
+                    console.error("Error generating OTP:", err);
+                    if (this.otpGroup1) this.otpGroup1.textContent = "ERR";
+                    if (this.otpGroup2) this.otpGroup2.textContent = "CODE";
+                    if (this.twofaTimerText) this.twofaTimerText.textContent = "Lỗi: Khóa bí mật không hợp lệ";
+                }
+            };
+
+            updateOtp();
+            this.state.twofaTimerId = setInterval(updateOtp, 1000);
+
+            if (!autoRun) {
+                this.toast("Đã sinh mã OTP thành công", "success");
+            }
+        } catch (error) {
+            this.toast(error.message || "Lỗi tạo OTP", "error");
+        }
+    }
+
+    updateTwofaUi(code, secondsRemaining) {
+        if (!code || code.length !== 6) return;
+
+        const part1 = code.slice(0, 3);
+        const part2 = code.slice(3, 6);
+
+        if (this.otpGroup1) this.otpGroup1.textContent = part1;
+        if (this.otpGroup2) this.otpGroup2.textContent = part2;
+
+        if (this.twofaTimerText) {
+            this.twofaTimerText.textContent = `Tự động cập nhật sau ${secondsRemaining}s`;
+        }
+
+        if (this.twofaProgress) {
+            const percentage = (secondsRemaining / 30) * 100;
+            this.twofaProgress.style.width = `${percentage}%`;
+            
+            if (secondsRemaining <= 5) {
+                this.twofaProgress.style.background = "linear-gradient(90deg, #ef4444, #f97316)";
+            } else {
+                this.twofaProgress.style.background = "linear-gradient(90deg, #157347, #10b981)";
+            }
+        }
+    }
+
+    async copyTwofaOtp() {
+        if (!this.otpGroup1 || !this.otpGroup2) return;
+        const code = this.otpGroup1.textContent + this.otpGroup2.textContent;
+        if (code.includes("-") || code.includes("E")) return;
+
+        const msg = `Đã sao chép mã: ${code}`;
+        try {
+            await navigator.clipboard.writeText(code);
+            this.toast(msg, "success");
+        } catch (err) {
+            const input = document.createElement("input");
+            input.value = code;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand("copy");
+            document.body.removeChild(input);
+            this.toast(msg, "success");
         }
     }
 }
